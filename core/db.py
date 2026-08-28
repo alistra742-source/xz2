@@ -188,6 +188,7 @@ CREATE TABLE IF NOT EXISTS orders (
     target     INTEGER NOT NULL DEFAULT 0,
     current    INTEGER NOT NULL DEFAULT 0,
     status     TEXT NOT NULL DEFAULT 'queued',
+    workers    INTEGER NOT NULL DEFAULT 0,
     message    TEXT DEFAULT '',
     created_at DOUBLE PRECISION NOT NULL,
     updated_at DOUBLE PRECISION NOT NULL
@@ -225,6 +226,12 @@ def init_db():
             execute(stmt)
         except Exception as e:  # pragma: no cover
             print(f"[DB] schema stmt failed: {e}", flush=True)
+    # migrations for databases created before a column existed
+    for stmt in ("ALTER TABLE orders ADD COLUMN workers INTEGER NOT NULL DEFAULT 0",):
+        try:
+            execute(stmt)
+        except Exception:
+            pass
     for k in ("accounts_created", "coins_spent", "coins_earned", "ads_watched", "orders_done"):
         try:
             execute("INSERT INTO stats (k, v) VALUES (?, 0)", (k,))

@@ -277,24 +277,65 @@ def parse_wait_time(text):
 _claim_lock = threading.Lock()
 
 
+def parallel_cap(service):
+    return config.PARALLEL_PAGES.get(service, config.PARALLEL_DEFAULT)
+
+
 def claim_order(engine_kind):
-    """Atomically grab the oldest queued order for this engine."""
+    """Grab work for this page.
+
+    Services with a parallel cap above 1 (likes especially) let several worker
+    pages attack the SAME order at once, which is what makes them land fast.
+    Everything else stays strictly one page per order.
+    """
     with _claim_lock:
-        platforms = ("tiktok",) if engine_kind == "zefoy" else ("instagram",)
-        rows = db.query(
-            "SELECT * FROM orders WHERE status = 'queued' AND platform = ?"
-            " ORDER BY id ASC LIMIT 1", (platforms[0],))
+        platform = "tiktok" if engine_kind == "zefoy" else "instagram"
+
+        # 1. join an order that is already running but still has free slots
+        for o in db.query("SELECT * FROM orders WHERE status = 'running' AND platform = ?"
+                          " ORDER BY id ASC", (platform,)):
+            cap = parallel_cap(o["service"])
+            if cap > 1 and int(o["workers"] or 0) < cap:
+                db.execute("UPDATE orders SET workers = workers + 1, updated_at = ? WHERE id = ?",
+                           (time.time(), o["id"]))
+                fresh = db.query_one("SELECT * FROM orders WHERE id = ?", (o["id"],))
+                if fresh and fresh["status"] == "running":
+                    log(f"order #{o['id']} {o['service']}: page joined "
+                        f"({fresh['workers']}/{cap} pages)")
+                    return fresh
+                db.execute("UPDATE orders SET workers = CASE WHEN workers > 0 THEN workers - 1"
+                           " ELSE 0 END WHERE id = ?", (o["id"],))
+
+        # 2. otherwise start the oldest queued order
+        rows = db.query("SELECT * FROM orders WHERE status = 'queued' AND platform = ?"
+                        " ORDER BY id ASC LIMIT 1", (platform,))
         if not rows:
             return None
         order = rows[0]
-        db.execute("UPDATE orders SET status = 'running', updated_at = ?, message = ?"
-                   " WHERE id = ? AND status = 'queued'",
+        db.execute("UPDATE orders SET status = 'running', workers = 1, updated_at = ?,"
+                   " message = ? WHERE id = ? AND status = 'queued'",
                    (time.time(), "picked up by worker", order["id"]))
         fresh = db.query_one("SELECT * FROM orders WHERE id = ?", (order["id"],))
         return fresh if fresh and fresh["status"] == "running" else None
 
 
+def leave_order(order_id):
+    """A page stops working an order without finishing it."""
+    try:
+        db.execute("UPDATE orders SET workers = CASE WHEN workers > 0 THEN workers - 1 ELSE 0 END"
+                   " WHERE id = ?", (order_id,))
+    except Exception:
+        pass
+
+
+def order_live(order_id):
+    """False once someone finished/failed the order — the other pages back off."""
+    row = db.query_one("SELECT status FROM orders WHERE id = ?", (order_id,))
+    return bool(row and row["status"] == "running")
+
+
 def finish_order(order_id, status, message, current=None):
+    db.execute("UPDATE orders SET workers = 0 WHERE id = ?", (order_id,))
     if current is None:
         db.execute("UPDATE orders SET status = ?, message = ?, updated_at = ? WHERE id = ?",
                    (status, message[:400], time.time(), order_id))
@@ -328,7 +369,9 @@ async def run_zefoy_order(page, key, label, order):
     target = int(order["target"])
     metric_key = svc_key if svc_key in ("views", "hearts", "favorites", "shares") else "views"
 
-    log(f"{label}: order #{order['id']} {svc_key} -> target {target}")
+    cap = parallel_cap(svc_key)
+    log(f"{label}: order #{order['id']} {svc_key} -> target {target}"
+        + (f" (up to {cap} pages in parallel)" if cap > 1 else ""))
     set_status(key, f"#{order['id']} {svc_key}")
 
     deadline = time.time() + 3 * 3600
@@ -354,11 +397,17 @@ async def run_zefoy_order(page, key, label, order):
         if page.is_closed():
             finish_order(order["id"], "queued", "page died, requeued")
             return
+        # another page working the same order may have already hit the target
+        if not await asyncio.get_event_loop().run_in_executor(None, order_live, order["id"]):
+            log(f"{label}: order #{order['id']} already completed by another page")
+            set_status(key, "idle")
+            return
         # ---- verify progress against the real counter
         if time.time() - last_check > 25:
             last_check = time.time()
+            # parallel pages share the counter cache so we don't hammer the API
             got = await asyncio.get_event_loop().run_in_executor(
-                None, counters.metric, link, metric_key, True)
+                None, counters.metric, link, metric_key, cap == 1)
             if got is not None:
                 current = got
                 progress(order["id"], current, f"{current}/{target} {metric_key}")
@@ -478,11 +527,17 @@ async def run_zefame_order(context, key, label, order):
         if not clicked:
             finish_order(order["id"], "queued", "zefame button not found, requeued")
             return
-        # let the site finish its job before we close the browser
-        for i in range(config.ZEFAME_WAIT_SECONDS):
+        # Zefame starts its own ~1 minute counter after "Get Now": ride it out
+        # (105 s), then hold another 20 s before the browser leaves the page.
+        total_wait = config.ZEFAME_TIMER_WAIT + config.ZEFAME_FINAL_WAIT
+        for i in range(total_wait):
             await asyncio.sleep(1)
+            left = total_wait - i
             if i % 5 == 0:
-                await shoot(page, key, label, f"#{order['id']} waiting {config.ZEFAME_WAIT_SECONDS - i}s")
+                phase = "site timer" if i < config.ZEFAME_TIMER_WAIT else "settling"
+                await shoot(page, key, label, f"#{order['id']} {phase} {left}s")
+            if i == config.ZEFAME_TIMER_WAIT:
+                log(f"{label}: zefame timer done, holding {config.ZEFAME_FINAL_WAIT}s more")
         body = ""
         try:
             body = (await page.inner_text("body")).lower()
@@ -533,7 +588,11 @@ async def page_worker(context, browser_idx, page_idx):
                     except Exception:
                         ig = None
                     if ig:
-                        await run_zefame_order(context, key, label, ig)
+                        try:
+                            await run_zefame_order(context, key, label, ig)
+                        finally:
+                            await asyncio.get_event_loop().run_in_executor(
+                                None, leave_order, ig["id"])
                         continue
                 set_status(key, "idle")
                 await asyncio.sleep(3)
@@ -551,6 +610,8 @@ async def page_worker(context, browser_idx, page_idx):
                 except Exception:
                     pass
                 page = None
+            finally:
+                await asyncio.get_event_loop().run_in_executor(None, leave_order, order["id"])
     except asyncio.CancelledError:
         pass
     finally:

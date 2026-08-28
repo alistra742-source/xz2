@@ -32,6 +32,8 @@ docker build -t coinflow . && docker run -p 8080:8080 --env-file .env coinflow
 | `SECRET_KEY` | HMAC key for signed tickets. Set it in production. |
 | `ADMIN_CODE` | Promo-field code that grants admin. Default `Tagys322@`. |
 | `BROWSERS` / `PAGES_PER_BROWSER` | Worker pool size. Default **4 × 3 = 12 pages**. |
+| `PARALLEL_HEARTS` / `PARALLEL_FAVORITES` / `PARALLEL_SHARES` / `PARALLEL_VIEWS` | Pages allowed on the *same* order at once. Defaults **4 / 2 / 2 / 1**. |
+| `ZEFAME_TIMER_WAIT` / `ZEFAME_FINAL_WAIT` | Seconds to sit through Zefame's own counter, then hold. Defaults **105 / 20**. |
 | `WORKER_ENABLED` / `MONITOR_ENABLED` | Turn the browser pool / Zefoy health probe on or off. |
 | `ADSENSE_CLIENT`, `ADSENSE_SLOTS` | Google AdSense client + comma-separated slot ids; slots are picked at random per ad. Empty → house ads. |
 | `USE_TOR`, `PROXY_URL` | Optional egress proxying for the worker pool. |
@@ -114,9 +116,16 @@ Pick platform → service → pay → paste link.
 * **5-minute global link lock**: while an order for a link is live, no other
   account, device or session can order that same link — enforced by a unique row
   in `link_locks`, not by the client.
+* **Parallel fan-out**: likes orders are worked by **up to 4 worker pages at the
+  same time** (favorites/shares 2, views 1) so they land much faster. Pages join
+  a running order as slots free up, share the counter cache so the metric API is
+  not hammered, and the moment any page reaches the target the rest see the
+  order is no longer live and drop it.
 * Every account gets **one free demo delivery** (no ads, no coins).
 * Instagram orders open <https://zefame.com/en/free-instagram-views>, fill the
-  link field, click *Get Now*, and wait 30 s before the page is closed.
+  link field and click *Get Now*. Zefame then runs its own ~1 minute counter, so
+  the page waits **105 s** for it to finish and holds a further **20 s** before
+  the browser leaves.
 
 ## Admin
 

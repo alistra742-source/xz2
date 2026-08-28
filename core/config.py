@@ -58,7 +58,20 @@ WORKER_ENABLED = _b("WORKER_ENABLED", "true")
 MONITOR_ENABLED = _b("MONITOR_ENABLED", "true")
 MONITOR_INTERVAL = 5                      # zefoy up/down probe cadence (seconds)
 LINK_LOCK_SECONDS = _i("LINK_LOCK_SECONDS", 300)   # 5 min global lock per link
-ZEFAME_WAIT_SECONDS = _i("ZEFAME_WAIT_SECONDS", 30)
+# Zefame runs its own ~1 minute counter after "Get Now" is pressed: sit through
+# it, then hold a little longer before the browser leaves the page.
+ZEFAME_TIMER_WAIT = _i("ZEFAME_TIMER_WAIT", 105)
+ZEFAME_FINAL_WAIT = _i("ZEFAME_FINAL_WAIT", 20)
+
+# How many worker pages may hammer the SAME order at once, per service.
+# Likes benefit the most from fan-out, so they get the full four.
+PARALLEL_PAGES = {
+    "hearts": _i("PARALLEL_HEARTS", 4),
+    "favorites": _i("PARALLEL_FAVORITES", 2),
+    "shares": _i("PARALLEL_SHARES", 2),
+    "views": _i("PARALLEL_VIEWS", 1),
+}
+PARALLEL_DEFAULT = 1
 
 PROXY_URL = os.environ.get("PROXY_URL", "").strip()
 USE_TOR = _b("USE_TOR", "false")
