@@ -78,6 +78,11 @@ def healthz():
     return jsonify({"ok": True, "ts": time.time()})
 
 
+@app.get("/ads.txt")
+def ads_txt():
+    return app.send_static_file("ads.txt")
+
+
 # ------------------------------------------------------------------ auth
 @app.post("/api/account/new")
 def api_account_new():
