@@ -265,11 +265,14 @@ def api_order():
     sess, acct, err = need_verified()
     if err:
         return err
+    ip = security.client_ip(request)
+    if not security.limiter.hit(f"orderip:{ip}", 10, 600):
+        return jsonify({"error": "rate-limited"}), 429
     body = request.json or {}
     if not security.limiter.hit(f"order:{acct['id']}", 12, 600):
         return jsonify({"error": "rate-limited"}), 429
     order, e = orders.create_order(acct, body.get("platform"), body.get("service"),
-                                   body.get("link"))
+                                   body.get("link"), body.get("nonce"))
     if e:
         return jsonify({"error": e}), 400
     return jsonify({"order": {"id": order["id"], "status": order["status"],
@@ -323,6 +326,10 @@ def api_admin_stats():
         return err
     stats = db.get_stats()
     total_accounts = (db.query_one("SELECT COUNT(*) AS c FROM accounts") or {}).get("c", 0)
+    active_orders = (db.query_one("SELECT COUNT(*) AS c FROM orders WHERE status IN"
+                                  " ('queued', 'running')") or {}).get("c", 0)
+    completed_orders = (db.query_one("SELECT COUNT(*) AS c FROM orders WHERE status IN"
+                                     " ('done', 'partial', 'failed')") or {}).get("c", 0)
     live_orders = db.query(
         "SELECT id, account_id, platform, service, status, current, target, message"
         " FROM orders ORDER BY id DESC LIMIT 25")
@@ -334,6 +341,9 @@ def api_admin_stats():
         "coins_earned": stats.get("coins_earned", 0),
         "ads_watched": stats.get("ads_watched", 0),
         "orders_done": stats.get("orders_done", 0),
+        "orders_running": int(active_orders),
+        "orders_completed": int(completed_orders),
+        "database": "postgres" if db.IS_PG else "sqlite",
         "orders": live_orders,
         "codes": codes,
         "monitor": engine.service_status(),

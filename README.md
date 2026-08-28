@@ -116,6 +116,25 @@ Pick platform → service → pay → paste link.
 * **5-minute global link lock**: while an order for a link is live, no other
   account, device or session can order that same link — enforced by a unique row
   in `link_locks`, not by the client.
+* **Order creation is one database transaction**: charge (a conditional
+  `UPDATE ... WHERE coins >= cost`), order insert, demo flag and link lock all
+  commit or roll back together. Two purchases fired at the same instant (two
+  devices, double-click, a replayed request) serialize on the account row — the
+  second one sees the first one's balance and is refused. Buying 1000 views at
+  5 coins from a 15-coin balance always leaves exactly 10.
+* **Anti-replay nonce**: every submit carries a unique request id that the
+  server accepts exactly once, so retries can never double-charge.
+* **One active order per account**: while an order is queued or running, new
+  orders are refused until it finishes.
+
+## Database
+
+Everything lives in Postgres when `DATABASE_URL` is set (schema is created
+automatically on boot); otherwise a local SQLite file under `data/` is used for
+dev. Tables cover accounts (with hashed login keys), sessions, orders (queued /
+running / done / partial / failed, each with cost, baseline→target and live
+progress), link locks, ad runs, captchas, promo codes and stats. The Admin tab
+shows running vs. completed order counts and which backend is live.
 * **Parallel fan-out**: likes orders are worked by **up to 4 worker pages at the
   same time** (favorites/shares 2, views 1) so they land much faster. Pages join
   a running order as slots free up, share the counter cache so the metric API is

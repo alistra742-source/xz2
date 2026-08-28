@@ -558,14 +558,21 @@ function renderServices() {
   showOrderForm();
 }
 
+function newNonce() {
+  // unique per submit — the server only accepts each id once, so a
+  // double-click, a retry or a second device can never double-charge.
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return 'n' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
+}
+
 $('#orderForm').addEventListener('submit', async e => {
   e.preventDefault();
   const link = $('#orderLink').value.trim();
-  if (!link) return;
+  if (!link || $('#orderSubmit').disabled) return;
   $('#orderSubmit').disabled = true;
   try {
     const d = await api('/api/rewards/order', {
-      platform: state.platform, service: state.service, link
+      platform: state.platform, service: state.service, link, nonce: newNonce()
     });
     toast(`Order #${d.order.id} queued${d.order.target ? ` → target ${d.order.target}` : ''}`, 'ok');
     $('#orderLink').value = '';
@@ -625,6 +632,9 @@ async function loadAdmin() {
       ${statCard('Coins earned', d.coins_earned)}
       ${statCard('Ads watched', d.ads_watched)}
       ${statCard('Orders completed', d.orders_done)}
+      ${statCard('Orders running', d.orders_running)}
+      ${statCard('Orders total (done)', d.orders_completed)}
+      ${statCard('Database', d.database)}
       ${statCard('Monitor', d.monitor.monitor_running ? 'LIVE' : 'OFFLINE')}`;
     $('#engineLog').textContent = (d.logs || []).join('\n');
     $('#codeList').innerHTML = (d.codes || []).map(c =>

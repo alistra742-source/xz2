@@ -110,13 +110,20 @@ def add_coins(account_id, amount, reason="", spend=False):
     return get_account(account_id)
 
 
+def try_spend_on(cur, account_id, amount):
+    """Conditional, atomic spend on an open transaction cursor. Returns True
+    only when the balance actually covered the price; the UPDATE matches zero
+    rows otherwise, so two simultaneous purchases can never double-spend."""
+    cur.execute(db._q("UPDATE accounts SET coins = coins - ?, coins_spent = coins_spent + ?"
+                      " WHERE id = ? AND coins >= ?"),
+                (amount, amount, account_id, amount))
+    return cur.rowcount > 0
+
+
 def try_spend(account_id, amount):
-    """Atomic-ish spend. Returns True when the balance covered the price."""
+    """Atomic conditional spend outside a bigger transaction."""
     with db.cursor() as cur:
-        cur.execute(db._q("UPDATE accounts SET coins = coins - ?, coins_spent = coins_spent + ?"
-                          " WHERE id = ? AND coins >= ?"),
-                    (amount, amount, account_id, amount))
-        ok = cur.rowcount > 0
+        ok = try_spend_on(cur, account_id, amount)
     if ok:
         db.bump_stat("coins_spent", amount)
     return ok

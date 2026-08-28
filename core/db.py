@@ -87,6 +87,39 @@ def cursor(commit=True):
             cur.close()
 
 
+@contextmanager
+def transaction():
+    """One atomic unit of work: every statement commits together or rolls
+    back together. Used wherever money moves (order creation)."""
+    if IS_PG:
+        pool = _init_pg()
+        conn = pool.getconn()
+        try:
+            import psycopg2.extras
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            try:
+                yield cur
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                cur.close()
+        finally:
+            pool.putconn(conn)
+    else:
+        conn = _sqlite_conn()
+        cur = conn.cursor()
+        try:
+            yield cur
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            cur.close()
+
+
 def execute(sql, params=()):
     with cursor() as cur:
         cur.execute(_q(sql), params)
@@ -190,6 +223,7 @@ CREATE TABLE IF NOT EXISTS orders (
     status     TEXT NOT NULL DEFAULT 'queued',
     workers    INTEGER NOT NULL DEFAULT 0,
     message    TEXT DEFAULT '',
+    nonce      TEXT,
     created_at DOUBLE PRECISION NOT NULL,
     updated_at DOUBLE PRECISION NOT NULL
 );
@@ -209,6 +243,8 @@ CREATE TABLE IF NOT EXISTS captcha_cache (
 );
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_sessions_acct ON sessions(account_id);
+CREATE INDEX IF NOT EXISTS idx_orders_active ON orders(account_id) WHERE status IN ('queued', 'running');
+CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_nonce ON orders(nonce) WHERE nonce IS NOT NULL;
 """
 
 SCHEMA_SQLITE = (
@@ -227,11 +263,21 @@ def init_db():
         except Exception as e:  # pragma: no cover
             print(f"[DB] schema stmt failed: {e}", flush=True)
     # migrations for databases created before a column existed
-    for stmt in ("ALTER TABLE orders ADD COLUMN workers INTEGER NOT NULL DEFAULT 0",):
+    for stmt in ("ALTER TABLE orders ADD COLUMN workers INTEGER NOT NULL DEFAULT 0",
+                 "ALTER TABLE orders ADD COLUMN nonce TEXT"):
         try:
             execute(stmt)
         except Exception:
             pass
+    # partial indexes must exist even on upgraded databases
+    for stmt in ("CREATE INDEX IF NOT EXISTS idx_orders_active ON orders(account_id)"
+                 " WHERE status IN ('queued', 'running')",
+                 "CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_nonce ON orders(nonce)"
+                 " WHERE nonce IS NOT NULL"):
+        try:
+            execute(stmt)
+        except Exception as e:
+            print(f"[DB] index stmt failed: {e}", flush=True)
     for k in ("accounts_created", "coins_spent", "coins_earned", "ads_watched", "orders_done"):
         try:
             execute("INSERT INTO stats (k, v) VALUES (?, 0)", (k,))
