@@ -3,7 +3,7 @@
   const cv = document.getElementById('bg');
   if (!cv) return;
   const ctx = cv.getContext('2d', { alpha: true });
-  let W = 0, H = 0, DPR = Math.min(window.devicePixelRatio || 1, 2);
+  let W = 0, H = 0, DPR = Math.min(window.devicePixelRatio || 1, 3);
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const dots = [];
