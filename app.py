@@ -83,9 +83,9 @@ def ads_txt():
     return app.send_static_file("ads.txt")
 
 
-@app.get("/3099179.txt")
+@app.get("/1495328.txt")
 def rollerads_verification():
-    return Response("3099179\n", mimetype="text/plain")
+    return Response("1495328\n", mimetype="text/plain")
 
 
 # ------------------------------------------------------------------ auth
