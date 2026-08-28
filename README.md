@@ -35,7 +35,7 @@ docker build -t coinflow . && docker run -p 8080:8080 --env-file .env coinflow
 | `PARALLEL_HEARTS` / `PARALLEL_FAVORITES` / `PARALLEL_SHARES` / `PARALLEL_VIEWS` | Pages allowed on the *same* order at once. Defaults **4 / 2 / 2 / 1**. |
 | `ZEFAME_TIMER_WAIT` / `ZEFAME_FINAL_WAIT` | Seconds to sit through Zefame's own counter, then hold. Defaults **105 / 20**. |
 | `WORKER_ENABLED` / `MONITOR_ENABLED` | Turn the browser pool / Zefoy health probe on or off. |
-| `ADSENSE_CLIENT`, `ADSENSE_SLOTS` | Google AdSense client + comma-separated slot ids; slots are picked at random per ad. Empty → house ads. |
+| `ADSTERRA_SOCIALBAR_SRC`, `ADSTERRA_POPUNDER_SRC` | Public Adsterra placement script URLs for the social bar and popunder; defaults are prefilled in `.env.example`. |
 | `USE_TOR`, `PROXY_URL` | Optional egress proxying for the worker pool. |
 | `AD_MIN_SECONDS`, `CAPTCHA_TOLERANCE_PX`, `CAPTCHA_INTERVAL_SECONDS`, `LINK_LOCK_SECONDS` | Tuning knobs. |
 
@@ -70,6 +70,9 @@ docker build -t coinflow . && docker run -p 8080:8080 --env-file .env coinflow
   be dismissed while it is mandatory.
 
 ## Get Coins — ad flow
+
+The page loads the configured Adsterra social bar before `</head>` and the popunder immediately above `</body>`. The rewarded flow below remains server-validated; provider scripts do not receive or contain account credentials.
+
 
 | Pack | Ads | Reward |
 |---|---|---|

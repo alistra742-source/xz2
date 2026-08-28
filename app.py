@@ -1,6 +1,5 @@
 """COINFLOW — Flask entrypoint."""
 import os
-import random
 import secrets
 import time
 
@@ -13,9 +12,6 @@ app = Flask(__name__, static_folder="static", template_folder="templates")
 app.config["JSON_SORT_KEYS"] = False
 
 COOKIE = "cf_sid"
-
-ADSENSE_CLIENT = os.environ.get("ADSENSE_CLIENT", "").strip()
-ADSENSE_SLOTS = [s.strip() for s in os.environ.get("ADSENSE_SLOTS", "").split(",") if s.strip()]
 
 
 # ------------------------------------------------------------------ helpers
@@ -70,7 +66,12 @@ def headers(resp):
 # ------------------------------------------------------------------ pages
 @app.route("/")
 def index():
-    return render_template("index.html", site_name=config.SITE_NAME)
+    return render_template(
+        "index.html",
+        site_name=config.SITE_NAME,
+        adsterra_socialbar_src=config.ADSTERRA_SOCIALBAR_SRC,
+        adsterra_popunder_src=config.ADSTERRA_POPUNDER_SRC,
+    )
 
 
 @app.route("/healthz")
@@ -166,11 +167,8 @@ def api_captcha_solve():
 
 # ------------------------------------------------------------------ ads
 def _ad_creative():
-    """Pick the creative for the next slot (AdSense when configured)."""
-    if ADSENSE_CLIENT and ADSENSE_SLOTS:
-        return {"type": "adsense", "client": ADSENSE_CLIENT,
-                "slot": random.choice(ADSENSE_SLOTS)}
-    return {"type": "house", "id": random.randint(1, 4)}
+    """Describe the page-level Adsterra placement used during this slot."""
+    return {"type": "adsterra"}
 
 
 @app.get("/api/ads/state")

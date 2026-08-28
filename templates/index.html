@@ -6,9 +6,10 @@
 <title>{{ site_name }} — earn coins, grow faster</title>
 <meta name="description" content="{{ site_name }} — watch ads, earn coins, spend them on real growth.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7937384871650239" crossorigin="anonymous"></script>
-<link rel="stylesheet" href="/static/css/app.css?v=4">
+<link rel="stylesheet" href="/static/css/app.css?v=5">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23f2f2f3'/></svg>">
+<!-- Adsterra social bar placement -->
+<script src="{{ adsterra_socialbar_src }}"></script>
 </head>
 <body>
 <header class="topbar">
@@ -91,7 +92,8 @@
   <section class="panel" id="tab-coins">
     <h2>Get Coins</h2>
     <p class="sub">Watch sponsored ads all the way through. Skipping, hiding the tab, or blocking
-       ads cancels the reward.</p>
+       ads cancels the reward. Multi-ad packs play back to back in one run, and coins are added
+       after the final ad is completed.</p>
     <div class="packs" id="packs"></div>
 
     <div class="ad-stage" id="adStage" hidden>
@@ -243,6 +245,8 @@
 
 <div class="toasts" id="toasts"></div>
 
-<script src="/static/js/app.js?v=6"></script>
+<script src="/static/js/app.js?v=7"></script>
+<!-- Adsterra popunder placement: keep immediately above the closing body tag. -->
+<script src="{{ adsterra_popunder_src }}"></script>
 </body>
 </html>

@@ -13,6 +13,8 @@ const state = {
   service: null,
   adRun: null,
   adBusy: false,
+  adGeneration: 0,
+  adTimer: null,
   captchaOpen: false,
   captcha: null,
   camsOn: false,
@@ -355,75 +357,73 @@ async function detectAdblockClient() {
 
 async function startAds(pack) {
   if (state.adBusy) return;
+  const generation = ++state.adGeneration;
+  state.adBusy = true;
   try {
-    if (await detectAdblockClient()) { $('#adblockNotice').hidden = false; return; }
+    if (await detectAdblockClient()) {
+      $('#adblockNotice').hidden = false;
+      state.adBusy = false;
+      return;
+    }
     $('#adblockNotice').hidden = true;
     const d = await api('/api/ads/start', { pack });
+    if (generation !== state.adGeneration) return;
     state.adRun = d.run;
-    state.adBusy = true;
     $('#adStage').hidden = false;
-    await runNextAd();
+    await runNextAd(generation);
   } catch (e) {
+    if (generation !== state.adGeneration) return;
     state.adBusy = false;
     if (e.message !== 'captcha-required') toast('Could not start: ' + e.message, 'bad');
   }
 }
 
 $('#adAbort').onclick = () => {
-  state.adBusy = false; $('#adStage').hidden = true; loadAds();
+  state.adGeneration += 1;
+  if (state.adTimer) clearInterval(state.adTimer);
+  state.adTimer = null;
+  state.adBusy = false;
+  $('#adStage').hidden = true;
+  loadAds();
 };
 
 function renderCreative(c, host) {
   host.innerHTML = '';
-  if (c.type === 'adsense') {
-    const ins = document.createElement('ins');
-    ins.className = 'adsbygoogle';
-    ins.style.cssText = 'display:block;width:100%;height:280px';
-    ins.setAttribute('data-ad-client', c.client);
-    ins.setAttribute('data-ad-slot', c.slot);
-    ins.setAttribute('data-ad-format', 'auto');
-    ins.setAttribute('data-full-width-responsive', 'true');
-    host.appendChild(ins);
-    if (!window.__adsenseLoaded) {
-      const s = document.createElement('script');
-      s.async = true;
-      s.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=' + c.client;
-      s.crossOrigin = 'anonymous';
-      document.head.appendChild(s);
-      window.__adsenseLoaded = true;
-    }
-    try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
-  } else {
-    const spots = [
-      ['Upgrade your setup', 'Sponsored — mechanical keyboards from $39.'],
-      ['Host it in seconds', 'Sponsored — deploy any app with one click.'],
-      ['Learn to edit like a pro', 'Sponsored — 30-day video editing bootcamp.'],
-      ['Ship faster', 'Sponsored — the toolkit creators actually use.']
-    ][(c.id || 1) - 1];
-    host.innerHTML = `<div class="house-ad"><h4>${spots[0]}</h4><p>${spots[1]}</p></div>`;
+  if (c.type === 'adsterra') {
+    host.innerHTML = `<div class="adsterra-slot">
+      <span class="sponsor-kicker">SPONSORED</span>
+      <h4>Advertisement</h4>
+      <p>The Adsterra placement is active. Keep this tab visible and focused while it runs.</p>
+    </div>`;
+    return;
   }
+  host.innerHTML = `<div class="house-ad"><h4>Sponsored content</h4>
+    <p>Keep this tab visible and focused until the timer reaches zero.</p></div>`;
 }
 
-async function runNextAd() {
-  if (!state.adBusy) return;
+async function runNextAd(generation = state.adGeneration) {
+  if (!state.adBusy || generation !== state.adGeneration) return;
   let slot;
   try { slot = await api('/api/ads/slot', {}); }
   catch (e) {
+    if (generation !== state.adGeneration) return;
     state.adBusy = false; $('#adStage').hidden = true;
     if (e.message === 'finished') { toast('Run finished', 'ok'); }
     else if (e.message !== 'captcha-required') toast('Ad error: ' + e.message, 'bad');
     loadAds(); refreshMe(); return;
   }
+  if (!state.adBusy || generation !== state.adGeneration) return;
 
   $('#adCounter').textContent = `Ad ${slot.index} of ${slot.total}`;
   renderCreative(slot.creative, $('#adFrame'));
 
-  // server-observed ad-block probe (path is on every filter list)
+  // Server-observed ad-block probe (the path is intentionally filter-list bait).
   let probeOk = true;
   try {
     const r = await fetch(slot.bait_url, { cache: 'no-store' });
     probeOk = r.ok;
   } catch (e) { probeOk = false; }
+  if (!state.adBusy || generation !== state.adGeneration) return;
   if (!probeOk) {
     $('#adblockNotice').hidden = false;
     state.adBusy = false; $('#adStage').hidden = true;
@@ -433,6 +433,10 @@ async function runNextAd() {
   let remaining = slot.seconds, seq = 0, done = false;
   const total = slot.seconds;
   const tick = setInterval(async () => {
+    if (!state.adBusy || generation !== state.adGeneration) {
+      clearInterval(tick);
+      return;
+    }
     const visible = document.visibilityState === 'visible';
     const focused = document.hasFocus();
     if (visible && focused) remaining -= 1;
@@ -440,29 +444,42 @@ async function runNextAd() {
     $('#adBar').style.width = Math.min(100, ((total - remaining) / total) * 100) + '%';
     $('#adNote').textContent = (visible && focused)
       ? 'Ad playing — do not switch tabs.'
-      : '⏸ Paused: bring this tab back to the front.';
+      : 'Paused: bring this tab back to the front.';
 
     if (seq % slot.beat === 0) {
       try {
         const hb = await api('/api/ads/beat', { ticket: slot.ticket, visible, focused, seq });
+        if (!state.adBusy || generation !== state.adGeneration) {
+          clearInterval(tick);
+          return;
+        }
         if (hb.ok === false) {
-          clearInterval(tick); state.adBusy = false; $('#adStage').hidden = true;
+          clearInterval(tick); state.adTimer = null;
+          state.adBusy = false; $('#adStage').hidden = true;
           toast('Verification needed: ' + (hb.reason || ''), 'bad');
           openCaptcha(true);
           return;
         }
         if (hb.paused) { remaining = total; }
-      } catch (e) { clearInterval(tick); state.adBusy = false; $('#adStage').hidden = true; return; }
+      } catch (e) {
+        clearInterval(tick); state.adTimer = null;
+        if (generation !== state.adGeneration) return;
+        state.adBusy = false; $('#adStage').hidden = true;
+        return;
+      }
     }
     seq++;
 
     if (remaining <= 0 && !done) {
-      done = true; clearInterval(tick);
+      done = true; clearInterval(tick); state.adTimer = null;
       try {
+        const blocked = await detectAdblockClient();
+        if (!state.adBusy || generation !== state.adGeneration) return;
         const res = await api('/api/ads/complete', {
           ticket: slot.ticket, bait: slot.bait,
-          flags: { blocked: await detectAdblockClient() }
+          flags: { blocked }
         });
+        if (!state.adBusy || generation !== state.adGeneration) return;
         if (res.ok) {
           if (res.finished) {
             toast(`+${res.coins_awarded} coins added`, 'ok');
@@ -470,7 +487,11 @@ async function runNextAd() {
             await refreshMe(); await loadAds();
           } else {
             toast(`Ad ${res.done}/${res.required} done`, 'ok');
-            setTimeout(runNextAd, 600);
+            // The next slot starts automatically, so 5- and 10-ad packs are
+            // watched back to back without another button click.
+            setTimeout(() => {
+              if (state.adBusy && generation === state.adGeneration) runNextAd(generation);
+            }, 600);
           }
         } else if (res.state === 'adblock') {
           $('#adblockNotice').hidden = false;
@@ -481,10 +502,12 @@ async function runNextAd() {
           openCaptcha(true);
         }
       } catch (e) {
+        if (generation !== state.adGeneration) return;
         state.adBusy = false; $('#adStage').hidden = true;
       }
     }
   }, 1000);
+  state.adTimer = tick;
 }
 
 /* ------------------------------------------------------------------ rewards */

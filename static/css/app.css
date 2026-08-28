@@ -112,6 +112,10 @@ h3{margin:0 0 10px;font-size:16px;font-weight:650;letter-spacing:-.2px}
 .house-ad{width:100%;padding:28px;border-radius:8px;background:var(--surface2);border:1px solid var(--line)}
 .house-ad h4{margin:0 0 8px;font-size:20px;font-weight:650;letter-spacing:-.4px}
 .house-ad p{color:var(--mut);margin:0;font-size:13.5px}
+.adsterra-slot{width:100%;padding:28px;border-radius:8px;background:var(--surface2);border:1px solid var(--line);text-align:center}
+.adsterra-slot h4{margin:8px 0 8px;font-size:20px;font-weight:650;letter-spacing:-.4px}
+.adsterra-slot p{color:var(--mut);margin:0;font-size:13.5px}
+.sponsor-kicker{color:var(--mut2);font-size:10px;letter-spacing:1.6px;font-weight:700}
 .notice{padding:14px 16px;border-radius:var(--r);margin-top:20px;border:1px solid var(--line2);
   background:var(--surface);font-size:13.5px;color:var(--mut)}
 .notice.danger{border-left:3px solid var(--bad)}

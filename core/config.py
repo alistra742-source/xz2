@@ -28,6 +28,18 @@ DATABASE_URL = (
 ).strip()
 SQLITE_PATH = os.environ.get("SQLITE_PATH", os.path.join(os.getcwd(), "data", "app.db"))
 
+# ---------------------------------------------------------------- ad provider
+# These are public placement script URLs, not credentials. Keep any provider API
+# key server-side and out of templates or browser JavaScript.
+ADSTERRA_SOCIALBAR_SRC = os.environ.get(
+    "ADSTERRA_SOCIALBAR_SRC",
+    "https://screwbedriddenheadline.com/77/58/bb/7758bb6f597e78f4f3aabb5e5e05c6d7.js",
+).strip()
+ADSTERRA_POPUNDER_SRC = os.environ.get(
+    "ADSTERRA_POPUNDER_SRC",
+    "https://screwbedriddenheadline.com/3a/80/83/3a80835883717f0372e091ba19face4c.js",
+).strip()
+
 # ---------------------------------------------------------------- economy
 COIN_PACKS = {
     "ads1": {"ads": 1, "coins": 5, "label": "Watch 1 ad"},
