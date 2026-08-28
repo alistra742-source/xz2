@@ -6,7 +6,7 @@
 <title>{{ site_name }} — earn coins, grow faster</title>
 <meta name="description" content="{{ site_name }} — watch ads, earn coins, spend them on real growth.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="/static/css/app.css?v=3">
+<link rel="stylesheet" href="/static/css/app.css?v=4">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23f2f2f3'/></svg>">
 </head>
 <body>
@@ -223,11 +223,17 @@
     <div class="cap-wrap">
       <div class="cap-scene" id="capScene">
         <img id="capImg" alt="challenge" draggable="false">
-        <img id="capItem" class="cap-item" alt="drag me" draggable="false">
+        <div id="capItem" class="cap-item">
+          <img id="capItemImg" alt="drag this" draggable="false">
+          <span class="grab-tag">HOLD &amp; DRAG</span>
+        </div>
       </div>
       <div class="cap-tray">
-        <span id="capMsg">Drag the object shown in the picture onto its target.</span>
-        <button class="btn ghost small" id="capNew">New challenge</button>
+        <span id="capMsg">Hold the framed object, drag it onto its target, then press Complete.</span>
+        <div class="row">
+          <button class="btn ghost small" id="capNew">New challenge</button>
+          <button class="btn primary small" id="capDone" disabled>Complete</button>
+        </div>
       </div>
     </div>
     <button class="modal-close" data-close id="capClose">✕</button>
@@ -236,6 +242,6 @@
 
 <div class="toasts" id="toasts"></div>
 
-<script src="/static/js/app.js?v=3"></script>
+<script src="/static/js/app.js?v=4"></script>
 </body>
 </html>
