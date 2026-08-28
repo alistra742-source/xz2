@@ -515,6 +515,23 @@ function renderPlatforms() {
   });
 }
 
+function showOrderForm() {
+  const p = state.catalogue && state.catalogue[state.platform];
+  const s = p && p.services.find(x => x.id === state.service);
+  if (!p || !s || s.state !== 'up') { $('#orderForm').hidden = true; return; }
+  const form = $('#orderForm');
+  form.hidden = false;
+  $('#orderLabel').textContent = `${s.label} · ${s.cost} coins — paste your ${p.label} link`;
+  $('#orderLink').placeholder = state.platform === 'tiktok'
+    ? 'https://www.tiktok.com/@user/video/123...'
+    : 'https://www.instagram.com/reel/...';
+  const demo = state.account && state.account.demo_available
+    ? ' — your FREE demo try will cover this order (no coins spent).' : '';
+  $('#orderHint').textContent = demo + (state.platform === 'tiktok'
+    ? `We read your current ${s.unit} first, then push until it reaches current + ${s.amount}.`
+    : `Delivered through our provider. One order per link every 5 minutes.`);
+}
+
 function renderServices() {
   const box = $('#services'); box.innerHTML = '';
   $('#orderForm').hidden = true;
@@ -532,24 +549,13 @@ function renderServices() {
       <h3>${s.label}</h3>
       <span class="badge ${s.state}">${s.state === 'up' ? 'ONLINE' : s.state === 'down' ? 'DOWN — Soon will update' : 'CHECKING…'}</span>`;
     if (s.state === 'up') {
-      el.onclick = () => {
-        state.service = s.id;
-        renderServices();
-        const form = $('#orderForm');
-        form.hidden = false;
-        $('#orderLabel').textContent = `${s.label} · ${s.cost} coins — paste your ${p.label} link`;
-        $('#orderLink').placeholder = state.platform === 'tiktok'
-          ? 'https://www.tiktok.com/@user/video/123...'
-          : 'https://www.instagram.com/reel/...';
-        const demo = state.account && state.account.demo_available
-          ? ' — your FREE demo try will cover this order (no coins spent).' : '';
-        $('#orderHint').textContent = demo + (state.platform === 'tiktok'
-          ? `We read your current ${s.unit} first, then push until it reaches current + ${s.amount}.`
-          : `Delivered through our provider. One order per link every 5 minutes.`);
-      };
+      el.onclick = () => { state.service = s.id; renderServices(); };
     }
     box.appendChild(el);
   });
+  // the 5s catalogue refresh re-renders this list; keep the link form open
+  // when a service is still selected instead of dropping it.
+  showOrderForm();
 }
 
 $('#orderForm').addEventListener('submit', async e => {

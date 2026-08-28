@@ -99,7 +99,7 @@ Pick platform → service → pay → paste link.
 |---|---|---|---|
 | TikTok | 25 likes | 10 coins | Zefoy |
 | TikTok | 1000 views | 5 coins | Zefoy |
-| TikTok | 25 favorites / 50 shares | 10 / 8 coins | Zefoy |
+| TikTok | 100 favorites / 50 shares | 10 / 8 coins | Zefoy |
 | Instagram | 300 views | 5 coins | Zefame |
 | X, Telegram | — | — | "Soon will update" |
 

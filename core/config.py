@@ -89,7 +89,7 @@ REWARDS = {
                        "zefoy_key": "hearts"},
             "views": {"label": "1000 Views", "amount": 1000, "cost": 5, "unit": "views",
                       "zefoy_key": "views"},
-            "favorites": {"label": "25 Favorites", "amount": 25, "cost": 10, "unit": "favorites",
+            "favorites": {"label": "100 Favorites", "amount": 100, "cost": 10, "unit": "favorites",
                           "zefoy_key": "favorites"},
             "shares": {"label": "50 Shares", "amount": 50, "cost": 8, "unit": "shares",
                        "zefoy_key": "shares"},
