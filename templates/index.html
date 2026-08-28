@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>{{ site_name }} — earn coins, grow faster</title>
+<meta name="description" content="{{ site_name }} — watch ads, earn coins, spend them on real growth.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="/static/css/app.css?v=4">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23f2f2f3'/></svg>">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark"></span>
+    <span class="brand-name">{{ site_name }}</span>
+  </div>
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-tab="main">Main</button>
+    <button class="tab locked" data-tab="coins">Get Coins <i class="lock">🔒</i></button>
+    <button class="tab locked" data-tab="rewards">Rewards <i class="lock">🔒</i></button>
+    <button class="tab admin-only" data-tab="admin" hidden>Admin</button>
+  </nav>
+  <div class="account-box" id="accountBox">
+    <button class="btn ghost" id="openAuth">Log in / Sign up</button>
+  </div>
+</header>
+
+<main>
+  <!-- ============================================================ MAIN -->
+  <section class="panel active" id="tab-main">
+    <div class="pinned" id="pinnedNotice">
+      
+      <div>
+        <strong>Log in / Sign up to see the other tabs.</strong>
+        <p>It is a <b>simple log in — no password, no email</b>. You press <b>Create Account</b>,
+           we hand you one long secret string, you save it, and that string <em>is</em> your account.</p>
+      </div>
+      <button class="btn primary" id="pinnedCta">Create Account</button>
+    </div>
+
+    <div class="hero">
+      <h1>Real growth, <span class="grad">paid in coins</span>.</h1>
+      <p class="lead">Watch sponsored ads, collect coins, and turn them into TikTok and Instagram
+        engagement. Everything is queued and processed by our own servers.</p>
+      <div class="hero-stats">
+        <div class="stat"><b id="heroCoins">—</b><span>your coins</span></div>
+        <div class="stat"><b>4×3</b><span>worker pages</span></div>
+        <div class="stat"><b>5s</b><span>service health checks</span></div>
+      </div>
+    </div>
+
+    <div class="cards">
+      <article class="card">
+        <h3>No automations allowed</h3>
+        <p>Scripts, macros, bots, auto-clickers, headless browsers and multi-tab farming are
+           blocked. Every ad, captcha and order is validated server-side; a failed check drops you
+           straight into a verification challenge and can void your run.</p>
+      </article>
+      <article class="card highlight">
+        <h3>Free demo, zero ads</h3>
+        <p>Every new account gets one <b>free demo try</b> without watching a single ad, so you can
+           see the delivery work before you spend anything.</p>
+      </article>
+      <article class="card">
+        <h3>This is our only site</h3>
+        <p>We do not run mirrors, clones, resellers or Telegram shops. Any other domain claiming to
+           be us is an <b>impersonator</b> — do not paste your secret key anywhere else. We will
+           never ask for a password, an email or a TikTok login.</p>
+      </article>
+      <article class="card">
+        <h3>Your key is your account</h3>
+        <p>We store only a hash of your key. If you lose it, the account is gone forever — nobody,
+           including us, can restore it. Save it in a password manager.</p>
+      </article>
+      <article class="card">
+        <h3>Human verification</h3>
+        <p>Two photo captchas when you sign in, and one more every hour you stay on the site.
+           They are easy for a person and painful for a bot.</p>
+      </article>
+      <article class="card">
+        <h3>How delivery works</h3>
+        <p>We read your post's public counter, add what you bought on top, and keep pushing until
+           the live number reaches that target. Over-delivery is fine, under-delivery is retried.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- ============================================================ COINS -->
+  <section class="panel" id="tab-coins">
+    <h2>Get Coins</h2>
+    <p class="sub">Watch sponsored ads all the way through. Skipping, hiding the tab, or blocking
+       ads cancels the reward.</p>
+    <div class="packs" id="packs"></div>
+
+    <div class="ad-stage" id="adStage" hidden>
+      <div class="ad-head">
+        <span id="adCounter">Ad 1 of 5</span>
+        <span class="ad-timer" id="adTimer">15s</span>
+      </div>
+      <div class="ad-frame" id="adFrame"></div>
+      <div class="ad-bar"><i id="adBar"></i></div>
+      <p class="ad-note" id="adNote">Keep this tab visible and focused — the timer pauses otherwise.</p>
+      <button class="btn ghost small" id="adAbort">Cancel run</button>
+    </div>
+
+    <div class="notice danger" id="adblockNotice" hidden>
+      <b>Ad blocker detected.</b> Disable it (and any shield / DNS filter) for this site, then reload.
+      Coins cannot be granted while ads are blocked.
+    </div>
+  </section>
+
+  <!-- ============================================================ REWARDS -->
+  <section class="panel" id="tab-rewards">
+    <h2>Rewards</h2>
+    <p class="sub">Pick a platform, pick a service, pay coins, paste your link.</p>
+
+    <div class="platforms" id="platforms"></div>
+    <div class="services" id="services"></div>
+
+    <form class="order-form" id="orderForm" hidden>
+      <label id="orderLabel">Paste your link</label>
+      <div class="row">
+        <input type="text" id="orderLink" placeholder="https://www.tiktok.com/@user/video/123..." autocomplete="off">
+        <button class="btn primary" type="submit" id="orderSubmit">Confirm &amp; pay</button>
+      </div>
+      <small id="orderHint"></small>
+    </form>
+
+    <div class="promo">
+      <h3>Promo code</h3>
+      <div class="row">
+        <input type="text" id="promoCode" placeholder="Enter code" autocomplete="off">
+        <button class="btn" id="promoBtn">Redeem</button>
+      </div>
+      <small id="promoMsg"></small>
+    </div>
+
+    <h3 class="orders-title">Your orders</h3>
+    <div class="orders" id="ordersList"><p class="muted">No orders yet.</p></div>
+  </section>
+
+  <!-- ============================================================ ADMIN -->
+  <section class="panel" id="tab-admin">
+    <h2>Admin</h2>
+    <div class="admin-grid" id="adminStats"></div>
+
+    <div class="admin-block">
+      <h3>Promo code generator</h3>
+      <div class="row">
+        <input type="number" id="genCoins" placeholder="Coins" value="25" min="1">
+        <input type="number" id="genUses" placeholder="Uses" value="1" min="1">
+        <input type="text" id="genCode" placeholder="Custom code (optional)">
+        <button class="btn primary" id="genBtn">Generate</button>
+      </div>
+      <div id="genOut" class="mono"></div>
+      <div id="codeList" class="code-list"></div>
+    </div>
+
+    <div class="admin-block">
+      <h3>Live cams <button class="btn ghost small" id="camToggle">Show</button></h3>
+      <div class="cams" id="cams"></div>
+    </div>
+
+    <div class="admin-block">
+      <h3>Engine log</h3>
+      <pre class="log" id="engineLog"></pre>
+    </div>
+
+    <div class="admin-block">
+      <h3>Recent orders</h3>
+      <div id="adminOrders"></div>
+    </div>
+  </section>
+</main>
+
+<!-- ============================================================ MODALS -->
+<div class="modal-root" id="modalRoot" hidden>
+  <div class="modal-backdrop"></div>
+
+  <div class="modal" id="modal-auth" hidden>
+    <h3>Log in / Sign up</h3>
+    <p class="muted">No password. No email. Just your secret key.</p>
+    <div class="auth-actions">
+      <button class="btn primary block" id="createAccountBtn">Create Account</button>
+      <div class="divider"><span>or</span></div>
+      <label>Already have a key?</label>
+      <textarea id="loginKey" rows="3" placeholder="CF-XXXXXXXX-XXXXXXXX-..." spellcheck="false"></textarea>
+      <button class="btn block" id="loginBtn">Log in</button>
+      <small class="err" id="authErr"></small>
+    </div>
+    <button class="modal-close" data-close>✕</button>
+  </div>
+
+  <div class="modal" id="modal-confirm" hidden>
+    <h3>Create a new account?</h3>
+    <p>You are about to generate a brand new secret key. It is shown <b>once</b>.
+       If you lose it, the account and every coin on it are gone forever.</p>
+    <div class="row end">
+      <button class="btn ghost" data-close>Cancel</button>
+      <button class="btn primary" id="confirmCreate">Yes, generate my key</button>
+    </div>
+    <button class="modal-close" data-close>✕</button>
+  </div>
+
+  <div class="modal wide" id="modal-key" hidden>
+    <h3>Save this string somewhere safe</h3>
+    <p class="warn">This is your account. We only keep a hash of it — <b>if you lose it, you lose
+      your account</b>. No email recovery, no support reset.</p>
+    <div class="keybox mono" id="keyBox"></div>
+    <div class="row">
+      <button class="btn primary" id="copyKey">Copy key</button>
+      <button class="btn" id="downloadKey">Download .txt</button>
+    </div>
+    <label class="check"><input type="checkbox" id="keySaved"> I saved my key somewhere safe</label>
+    <button class="btn primary block" id="goLogin" disabled>Continue to log in</button>
+    <button class="modal-close" data-close>✕</button>
+  </div>
+
+  <div class="modal wide" id="modal-captcha" hidden>
+    <h3>Verify you are human</h3>
+    <p class="muted" id="capSub">Solve 2 challenges to unlock your account.</p>
+    <div class="cap-wrap">
+      <div class="cap-scene" id="capScene">
+        <img id="capImg" alt="challenge" draggable="false">
+        <div id="capItem" class="cap-item">
+          <img id="capItemImg" alt="drag this" draggable="false">
+          <span class="grab-tag">HOLD &amp; DRAG</span>
+        </div>
+      </div>
+      <div class="cap-tray">
+        <span id="capMsg">Hold the framed object, drag it onto its target, then press Complete.</span>
+        <div class="row">
+          <button class="btn ghost small" id="capNew">New challenge</button>
+          <button class="btn primary small" id="capDone" disabled>Complete</button>
+        </div>
+      </div>
+    </div>
+    <button class="modal-close" data-close id="capClose">✕</button>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script src="/static/js/app.js?v=4"></script>
+</body>
+</html>
