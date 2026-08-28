@@ -93,7 +93,7 @@ function renderAccount() {
     return;
   }
   box.innerHTML = `
-    <span class="coin-pill">🪙 <b id="coinVal">${a.coins}</b></span>
+    <span class="coin-pill"><b id="coinVal">${a.coins}</b> coins</span>
     <span class="user-pill">@<b>${a.username}</b></span>
     <button class="btn ghost small" id="logoutBtn">Log out</button>`;
   $('#logoutBtn').onclick = async () => {
@@ -411,7 +411,7 @@ async function runNextAd() {
         });
         if (res.ok) {
           if (res.finished) {
-            toast(`+${res.coins_awarded} coins!`, 'ok');
+            toast(`+${res.coins_awarded} coins added`, 'ok');
             state.adBusy = false; $('#adStage').hidden = true;
             await refreshMe(); await loadAds();
           } else {
@@ -434,7 +434,7 @@ async function runNextAd() {
 }
 
 /* ------------------------------------------------------------------ rewards */
-const PLAT_ICON = { tiktok: '🎵', instagram: '📸', x: '✖', telegram: '✈️' };
+const PLAT_ICON = { tiktok: 'TT', instagram: 'IG', x: 'X', telegram: 'TG' };
 
 async function loadCatalogue() {
   try {
@@ -451,7 +451,7 @@ function renderPlatforms() {
     if (id.startsWith('_')) return;
     const el = document.createElement('div');
     el.className = 'plat' + (state.platform === id ? ' sel' : '');
-    el.innerHTML = `<span class="ic">${PLAT_ICON[id] || '★'}</span>${p.label}
+    el.innerHTML = `<span class="ic">${PLAT_ICON[id] || '--'}</span>${p.label}
       <small>${p.available ? 'available' : 'Soon will update'}</small>`;
     el.onclick = () => {
       state.platform = id; state.service = null;
@@ -474,7 +474,7 @@ function renderServices() {
   p.services.forEach(s => {
     const el = document.createElement('div');
     el.className = 'svc' + (s.state !== 'up' ? ' down' : '') + (state.service === s.id ? ' sel' : '');
-    el.innerHTML = `<div class="price">${s.cost} 🪙</div>
+    el.innerHTML = `<div class="price">${s.cost}<span class="unit"> coins</span></div>
       <h3>${s.label}</h3>
       <span class="badge ${s.state}">${s.state === 'up' ? 'ONLINE' : s.state === 'down' ? 'DOWN — Soon will update' : 'CHECKING…'}</span>`;
     if (s.state === 'up') {

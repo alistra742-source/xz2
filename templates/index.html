@@ -6,17 +6,13 @@
 <title>{{ site_name }} — earn coins, grow faster</title>
 <meta name="description" content="{{ site_name }} — watch ads, earn coins, spend them on real growth.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="/static/css/app.css?v=2">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🪙</text></svg>">
+<link rel="stylesheet" href="/static/css/app.css?v=3">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23f2f2f3'/></svg>">
 </head>
 <body>
-<canvas id="bg"></canvas>
-<div class="glow glow-a"></div>
-<div class="glow glow-b"></div>
-
 <header class="topbar">
   <div class="brand">
-    <span class="brand-mark">🪙</span>
+    <span class="brand-mark"></span>
     <span class="brand-name">{{ site_name }}</span>
   </div>
   <nav class="tabs" id="tabs">
@@ -34,7 +30,7 @@
   <!-- ============================================================ MAIN -->
   <section class="panel active" id="tab-main">
     <div class="pinned" id="pinnedNotice">
-      <div class="pin-icon">📌</div>
+      
       <div>
         <strong>Log in / Sign up to see the other tabs.</strong>
         <p>It is a <b>simple log in — no password, no email</b>. You press <b>Create Account</b>,
@@ -56,34 +52,34 @@
 
     <div class="cards">
       <article class="card">
-        <h3>🚫 No automations allowed</h3>
+        <h3>No automations allowed</h3>
         <p>Scripts, macros, bots, auto-clickers, headless browsers and multi-tab farming are
            blocked. Every ad, captcha and order is validated server-side; a failed check drops you
            straight into a verification challenge and can void your run.</p>
       </article>
       <article class="card highlight">
-        <h3>🎁 Free demo, zero ads</h3>
+        <h3>Free demo, zero ads</h3>
         <p>Every new account gets one <b>free demo try</b> without watching a single ad, so you can
            see the delivery work before you spend anything.</p>
       </article>
       <article class="card">
-        <h3>⚠️ This is our only site</h3>
+        <h3>This is our only site</h3>
         <p>We do not run mirrors, clones, resellers or Telegram shops. Any other domain claiming to
            be us is an <b>impersonator</b> — do not paste your secret key anywhere else. We will
            never ask for a password, an email or a TikTok login.</p>
       </article>
       <article class="card">
-        <h3>🔑 Your key is your account</h3>
+        <h3>Your key is your account</h3>
         <p>We store only a hash of your key. If you lose it, the account is gone forever — nobody,
            including us, can restore it. Save it in a password manager.</p>
       </article>
       <article class="card">
-        <h3>🧩 Human checks</h3>
+        <h3>Human verification</h3>
         <p>Two photo captchas when you sign in, and one more every hour you stay on the site.
            They are easy for a person and painful for a bot.</p>
       </article>
       <article class="card">
-        <h3>📦 How delivery works</h3>
+        <h3>How delivery works</h3>
         <p>We read your post's public counter, add what you bought on top, and keep pushing until
            the live number reaches that target. Over-delivery is fine, under-delivery is retried.</p>
       </article>
@@ -208,7 +204,7 @@
   </div>
 
   <div class="modal wide" id="modal-key" hidden>
-    <h3>🔑 Save this string somewhere safe</h3>
+    <h3>Save this string somewhere safe</h3>
     <p class="warn">This is your account. We only keep a hash of it — <b>if you lose it, you lose
       your account</b>. No email recovery, no support reset.</p>
     <div class="keybox mono" id="keyBox"></div>
@@ -240,7 +236,6 @@
 
 <div class="toasts" id="toasts"></div>
 
-<script src="/static/js/particles.js?v=2"></script>
-<script src="/static/js/app.js?v=2"></script>
+<script src="/static/js/app.js?v=3"></script>
 </body>
 </html>
