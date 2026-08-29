@@ -139,8 +139,12 @@ STEALTH_JS = """(() => {
   window.chrome = window.chrome || {runtime: {}};
 })();"""
 
-# Everything we never need — blocking it is the single biggest load-time win.
-BLOCK_RES = {"image", "media", "font", "stylesheet"}
+# Only block heavy media.  CSS / fonts / images from non-ad hosts stay ON so
+# the worker pages render exactly like a human browser.  With the stylesheet
+# aborted the page drew unstyled: every service panel visible at once, native
+# element sizes, captcha image at odd geometry — the broken "bot view" the
+# live cams showed.  Ad/analytics hosts are still killed by BLOCK_HOSTS.
+BLOCK_RES = {"media"}
 BLOCK_HOSTS = ("googlesyndication", "doubleclick", "googletagmanager", "google-analytics",
                "adservice", "adsystem", "facebook.net", "hotjar", "criteo", "taboola",
                "propellerads", "onclickads", "popads", "adsterra")
@@ -180,7 +184,7 @@ async def new_fast_page(context):
     return page
 
 
-async def shoot(page, key, label, status="", quality=42):
+async def shoot(page, key, label, status="", quality=70):
     try:
         if page.is_closed():
             return
@@ -188,6 +192,55 @@ async def shoot(page, key, label, status="", quality=42):
         put_frame(key, buf, label, status)
     except Exception:
         pass
+
+
+async def captcha_source_bytes(page, img):
+    """Original captcha bytes straight from its src.
+
+    An element screenshot comes back at rendered size (small, often mis-cropped
+    by padding/transforms) — that is what made the captcha look low quality and
+    badly cropped.  The src is the server-side original at full resolution.
+    """
+    try:
+        src = await img.get_attribute("src")
+        if src and src.startswith("data:"):
+            return base64.b64decode(src.split(",", 1)[1])
+        if src and src.startswith("http"):
+            resp = await page.context.request.get(src)
+            if resp.ok:
+                return await resp.body()
+    except Exception:
+        pass
+    return await img.screenshot()
+
+
+async def select_limit(page, menu):
+    """Zefoy's favorites flow pops a 'Select limit' dropdown after the search.
+
+    A human clicks it and chooses 100; skipping it is what makes Zefoy answer
+    'An error occurred. Please try again.'  Returns the picked label or None.
+    """
+    for sel in (f"{menu} select", "select"):
+        try:
+            loc = page.locator(sel).first
+            if not await loc.is_visible(timeout=700):
+                continue
+            picked = await loc.evaluate(
+                """el => {
+                    const opts = [...el.options];
+                    const want = opts.find(o => (o.textContent || '').trim() === '100')
+                              || opts.find(o => o.value === '100')
+                              || opts[opts.length - 1];
+                    if (!want || el.value === want.value) return null;
+                    el.value = want.value;
+                    el.dispatchEvent(new Event('change', {bubbles: true}));
+                    return ((want.textContent || want.value) || '').trim();
+                }""")
+            if picked:
+                return picked
+        except Exception:
+            continue
+    return None
 
 
 async def solve_zefoy_captcha(page, key, label, attempts=6):
@@ -204,7 +257,7 @@ async def solve_zefoy_captcha(page, key, label, attempts=6):
                 await page.reload(wait_until="domcontentloaded")
                 await asyncio.sleep(1.5)
                 continue
-            shot = await img.screenshot()
+            shot = await captcha_source_bytes(page, img)
             set_status(key, f"solving captcha {i+1}/{attempts}")
             answer = await loop.run_in_executor(None, solver.solve, shot)
             if not answer:
@@ -393,6 +446,7 @@ async def run_zefoy_order(page, key, label, order):
         return
 
     filled = False
+    err_streak = 0
     while time.time() < deadline:
         if page.is_closed():
             finish_order(order["id"], "queued", "page died, requeued")
@@ -453,10 +507,37 @@ async def run_zefoy_order(page, key, label, order):
                 progress(order["id"], current, f"zefoy cooldown {wait_s}s ({current}/{target})")
                 await asyncio.sleep(min(wait_s + 2, 300))
                 break
+            if "error occurred" in body or "error occured" in body:
+                # Zefoy's answer when the search is rejected — most often the
+                # missing 'Select limit' step.  Re-submit; every 3rd strike
+                # reopen the service panel for a clean slate.
+                err_streak += 1
+                log(f"{label}: 'an error occurred' from zefoy (#{order['id']})"
+                    f" retry {err_streak}")
+                set_status(key, f"#{order['id']} error, retrying")
+                filled = False
+                if err_streak >= 3:
+                    err_streak = 0
+                    try:
+                        await page.locator(f".{svc['button']}").first.click(
+                            force=True, timeout=6000)
+                        await asyncio.sleep(1.2)
+                    except Exception:
+                        pass
+                break
             if "successfully" in body:
+                err_streak = 0
                 log(f"{label}: submit ok (#{order['id']})")
                 await asyncio.sleep(2)
                 break
+            # favorites & co: pick the limit (100) when the dropdown appears
+            picked = await select_limit(page, menu)
+            if picked:
+                err_streak = 0
+                log(f"{label}: limit selected -> {picked} (#{order['id']})")
+                set_status(key, f"#{order['id']} limit {picked}")
+                await asyncio.sleep(1.2)
+                continue
             # click the actual "Send" button when it appears
             clicked = False
             for sel in (f"{menu} {SEND_BUTTON}", SEND_BUTTON, f"{menu} button.wbutton"):
@@ -637,7 +718,7 @@ async def browser_worker(pw, browser_idx):
         try:
             browser = await pw.chromium.launch(**launch)
             context = await browser.new_context(
-                viewport={"width": 1000, "height": 680},
+                viewport={"width": 1920, "height": 1080},
                 user_agent=("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                             "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"),
                 locale="en-US",
@@ -674,7 +755,7 @@ async def status_monitor(pw):
         browser = None
         try:
             browser = await pw.chromium.launch(**launch)
-            context = await browser.new_context(viewport={"width": 1000, "height": 760})
+            context = await browser.new_context(viewport={"width": 1920, "height": 1080})
             page = await new_fast_page(context)
             ok = await open_zefoy(page, key, label)
             if not ok:
@@ -704,7 +785,7 @@ async def status_monitor(pw):
                     SERVICE_STATUS["error"] = str(e)[:120]
                 await shoot(page, key, label,
                             "up: " + ",".join(k for k, v in SERVICE_STATUS["state"].items()
-                                              if v == "up"), quality=45)
+                                              if v == "up"))
                 # a captcha can reappear at any time — solve it and keep going
                 try:
                     if await page.locator(CAPTCHA_IMG).count() > 0:

@@ -37,6 +37,9 @@ ITEMS = {
     "ball": "ball",
     "apple": "apple",
     "cup": "cup",
+    "duck": "duck",
+    "fish": "fish",
+    "flower": "flower",
 }
 VERB = {"car": "into the car", "basket": "into the basket", "box": "into the box"}
 
