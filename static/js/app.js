@@ -11,6 +11,7 @@ const state = {
   catalogue: null,
   platform: null,
   service: null,
+  amounts: {},
   adRun: null,
   adBusy: false,
   adGeneration: 0,
@@ -544,15 +545,59 @@ function showOrderForm() {
   if (!p || !s || s.state !== 'up') { $('#orderForm').hidden = true; return; }
   const form = $('#orderForm');
   form.hidden = false;
-  $('#orderLabel').textContent = `${s.label} · ${s.cost} coins — paste your ${p.label} link`;
+  $('#orderLabel').textContent = `${s.label} — paste your ${p.label} link`;
   $('#orderLink').placeholder = state.platform === 'tiktok'
     ? 'https://www.tiktok.com/@user/video/123...'
     : 'https://www.instagram.com/reel/...';
+  const amt = $('#orderAmount');
+  amt.min = s.min; amt.max = s.max; amt.step = s.step;
+  if (state.amounts[state.service] == null) amt.value = s.base_amount;
+  renderChips(s);
+  refreshPrice(false);
   const demo = state.account && state.account.demo_available
     ? ' — your FREE demo try will cover this order (no coins spent).' : '';
   $('#orderHint').textContent = demo + (state.platform === 'tiktok'
-    ? `We read your current ${s.unit} first, then push until it reaches current + ${s.amount}.`
-    : `Delivered through our provider. One order per link every 5 minutes.`);
+    ? `We read your current ${s.unit} first, then push until it reaches current + your amount.`
+    : `Delivered in ~${s.per_run}-view batches — one batch per ` +
+      `${(s.cycle_seconds / 60).toFixed(1)} min cycle, so bigger orders take longer. ` +
+      `One order per link every 5 minutes.`);
+}
+
+/* ------------------------------------------------- amount chooser helpers */
+function renderChips(s) {
+  const q = v => Math.max(s.min, Math.min(s.max, v - (v % s.step)));
+  const vals = [...new Set([s.min, s.base_amount, s.base_amount * 2,
+                            s.base_amount * 4, s.max].map(q))];
+  $('#amountChips').innerHTML = vals
+    .map(v => `<button type="button" class="btn ghost" data-a="${v}">${v}</button>`).join('');
+  $$('#amountChips .btn').forEach(b => b.onclick = () => {
+    $('#orderAmount').value = b.dataset.a;
+    state.amounts[state.service] = +b.dataset.a;
+    refreshPrice(false);
+  });
+}
+
+function refreshPrice(commit) {
+  const p = state.catalogue && state.catalogue[state.platform];
+  const s = p && p.services.find(x => x.id === state.service);
+  if (!p || !s) return;
+  const amt = $('#orderAmount');
+  let a = parseInt(amt.value, 10);
+  if (isNaN(a)) a = state.amounts[state.service] || s.base_amount;
+  let q = Math.max(s.min, Math.min(s.max, a - (a % s.step)));
+  if (commit) { amt.value = q; state.amounts[state.service] = q; }
+  const cost = Math.ceil(q / s.base_amount * s.base_cost);
+  let eta = '';
+  if (p.engine === 'zefame' && s.per_run) {
+    const runs = Math.ceil(q / s.per_run);
+    eta = ` · ${runs} batch${runs > 1 ? 'es' : ''} · ≈ ${Math.ceil(runs * s.cycle_seconds / 60)} min`;
+  }
+  const short = state.account && !state.account.demo_available &&
+                cost > state.account.coins;
+  $('#orderPrice').innerHTML =
+    `${q} ${s.unit} = <span class="coins">${cost} coins</span>${eta}` +
+    (short ? ' <span class="short">— not enough coins</span>' : '');
+  $$('#amountChips .btn').forEach(b => b.classList.toggle('sel', +b.dataset.a === q));
 }
 
 function renderServices() {
@@ -568,7 +613,7 @@ function renderServices() {
   p.services.forEach(s => {
     const el = document.createElement('div');
     el.className = 'svc' + (s.state !== 'up' ? ' down' : '') + (state.service === s.id ? ' sel' : '');
-    el.innerHTML = `<div class="price">${s.cost}<span class="unit"> coins</span></div>
+    el.innerHTML = `<div class="price">${s.base_cost}<span class="unit"> coins / ${s.base_amount} ${s.unit}</span></div>
       <h3>${s.label}</h3>
       <span class="badge ${s.state}">${s.state === 'up' ? 'ONLINE' : s.state === 'down' ? 'DOWN — Soon will update' : 'CHECKING…'}</span>`;
     if (s.state === 'up') {
@@ -588,6 +633,9 @@ function newNonce() {
   return 'n' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
 }
 
+$('#orderAmount').addEventListener('input', () => refreshPrice(false));
+$('#orderAmount').addEventListener('change', () => refreshPrice(true));
+
 $('#orderForm').addEventListener('submit', async e => {
   e.preventDefault();
   const link = $('#orderLink').value.trim();
@@ -595,9 +643,11 @@ $('#orderForm').addEventListener('submit', async e => {
   $('#orderSubmit').disabled = true;
   try {
     const d = await api('/api/rewards/order', {
-      platform: state.platform, service: state.service, link, nonce: newNonce()
+      platform: state.platform, service: state.service, link, nonce: newNonce(),
+      amount: parseInt($('#orderAmount').value, 10) || undefined
     });
-    toast(`Order #${d.order.id} queued${d.order.target ? ` → target ${d.order.target}` : ''}`, 'ok');
+    toast(`Order #${d.order.id} queued — ${d.order.amount} for ${d.order.cost} coins` +
+          (d.order.target ? ` → target ${d.order.target}` : ''), 'ok');
     $('#orderLink').value = '';
     await refreshMe(); await loadOrders();
   } catch (err) { toast(err.message, 'bad'); }

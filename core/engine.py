@@ -568,66 +568,95 @@ async def run_zefoy_order(page, key, label, order):
 
 
 # ---------------------------------------------------------------- zefame job
+async def _zefame_batch(page, key, label, order, batch_no, runs):
+    """One Zefame submission: fill the link, press Get Now, sit through the
+    site's own ~1 minute counter and hold.  True = submitted, None = page
+    elements missing (requeue)."""
+    await page.goto(config.ZEFAME_IG_VIEWS_URL, wait_until="domcontentloaded", timeout=60000)
+    await asyncio.sleep(2)
+    await shoot(page, key, label, f"#{order['id']} batch {batch_no}/{runs}")
+    field = None
+    for sel in ("input[type='url']", "input[name*='link']", "input[name*='url']",
+                "input[placeholder*='link' i]", "input[placeholder*='url' i]",
+                "form input[type='text']", "input[type='text']"):
+        try:
+            loc = page.locator(sel).first
+            if await loc.is_visible(timeout=2500):
+                field = loc
+                break
+        except Exception:
+            continue
+    if field is None:
+        return None
+    await field.fill(order["link"])
+    await asyncio.sleep(0.6)
+    clicked = False
+    for sel in ("button:has-text('Get Now')", "button:has-text('Get now')",
+                "a:has-text('Get Now')", "a:has-text('Get now')",
+                "input[type='submit']", "button[type='submit']"):
+        try:
+            b = page.locator(sel).first
+            if await b.is_visible(timeout=2500):
+                await b.click(timeout=8000)
+                clicked = True
+                break
+        except Exception:
+            continue
+    if not clicked:
+        return None
+    # Zefame starts its own ~1 minute counter after "Get Now": ride it out
+    # (105 s), then hold another 20 s before moving on.
+    total_wait = config.ZEFAME_TIMER_WAIT + config.ZEFAME_FINAL_WAIT
+    for i in range(total_wait):
+        await asyncio.sleep(1)
+        left = total_wait - i
+        if i % 5 == 0:
+            phase = "site timer" if i < config.ZEFAME_TIMER_WAIT else "settling"
+            await shoot(page, key, label,
+                        f"#{order['id']} b{batch_no}/{runs} {phase} {left}s")
+        if i == config.ZEFAME_TIMER_WAIT:
+            log(f"{label}: zefame timer done, holding {config.ZEFAME_FINAL_WAIT}s more")
+    body = ""
+    try:
+        body = (await page.inner_text("body")).lower()
+    except Exception:
+        pass
+    return any(w in body for w in ("success", "delivered", "processing", "thank", "order"))
+
+
 async def run_zefame_order(context, key, label, order):
+    """Instagram views arrive in ~300-view batches; the site only lets a new
+    batch start once per 5.3-minute cycle, so 1000 views = 4 batches ≈ 22 min.
+    """
     page = None
+    amount = int(order["amount"] or 0) or config.ZEFAME_VIEWS_PER_RUN
+    runs = max(1, -(-amount // config.ZEFAME_VIEWS_PER_RUN))
     try:
         page = await new_fast_page(context)
-        set_status(key, f"#{order['id']} instagram views")
-        await page.goto(config.ZEFAME_IG_VIEWS_URL, wait_until="domcontentloaded", timeout=60000)
-        await asyncio.sleep(2)
-        await shoot(page, key, label)
-        # find the link field
-        field = None
-        for sel in ("input[type='url']", "input[name*='link']", "input[name*='url']",
-                    "input[placeholder*='link' i]", "input[placeholder*='url' i]",
-                    "form input[type='text']", "input[type='text']"):
-            try:
-                loc = page.locator(sel).first
-                if await loc.is_visible(timeout=2500):
-                    field = loc
-                    break
-            except Exception:
-                continue
-        if field is None:
-            finish_order(order["id"], "queued", "zefame input not found, requeued")
-            return
-        await field.fill(order["link"])
-        await asyncio.sleep(0.6)
-        clicked = False
-        for sel in ("button:has-text('Get Now')", "button:has-text('Get now')",
-                    "a:has-text('Get Now')", "a:has-text('Get now')",
-                    "input[type='submit']", "button[type='submit']"):
-            try:
-                b = page.locator(sel).first
-                if await b.is_visible(timeout=2500):
-                    await b.click(timeout=8000)
-                    clicked = True
-                    break
-            except Exception:
-                continue
-        if not clicked:
-            finish_order(order["id"], "queued", "zefame button not found, requeued")
-            return
-        # Zefame starts its own ~1 minute counter after "Get Now": ride it out
-        # (105 s), then hold another 20 s before the browser leaves the page.
-        total_wait = config.ZEFAME_TIMER_WAIT + config.ZEFAME_FINAL_WAIT
-        for i in range(total_wait):
-            await asyncio.sleep(1)
-            left = total_wait - i
-            if i % 5 == 0:
-                phase = "site timer" if i < config.ZEFAME_TIMER_WAIT else "settling"
-                await shoot(page, key, label, f"#{order['id']} {phase} {left}s")
-            if i == config.ZEFAME_TIMER_WAIT:
-                log(f"{label}: zefame timer done, holding {config.ZEFAME_FINAL_WAIT}s more")
-        body = ""
-        try:
-            body = (await page.inner_text("body")).lower()
-        except Exception:
-            pass
-        ok = any(w in body for w in ("success", "delivered", "processing", "thank", "order"))
+        set_status(key, f"#{order['id']} instagram views x{runs}")
+        ok = False
+        for batch in range(runs):
+            cycle_start = time.time()
+            log(f"{label}: zefame batch {batch + 1}/{runs} for #{order['id']}"
+                f" ({amount} views)")
+            ok = await _zefame_batch(page, key, label, order, batch + 1, runs)
+            if ok is None:
+                finish_order(order["id"], "queued", "zefame input/button not found, requeued")
+                return
+            if batch < runs - 1:
+                # the site's per-link cooldown: next batch starts one full
+                # cycle (5.3 min) after this one started
+                wait = int(config.ZEFAME_CYCLE_SECONDS - (time.time() - cycle_start))
+                while wait > 0:
+                    if not order_live(order["id"]):
+                        return
+                    await shoot(page, key, label, f"#{order['id']} next batch in {wait}s")
+                    await asyncio.sleep(1)
+                    wait -= 1
         finish_order(order["id"], "done" if ok else "partial",
-                     "submitted to zefame" if ok else "submitted, response unclear")
-        log(f"{label}: zefame order #{order['id']} submitted")
+                     f"{runs} batch{'es' if runs > 1 else ''} submitted to zefame"
+                     if ok else "submitted, response unclear")
+        log(f"{label}: zefame order #{order['id']} finished ({runs} batches)")
     except Exception as e:
         finish_order(order["id"], "queued", f"zefame error: {e}")
     finally:

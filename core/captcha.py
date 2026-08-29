@@ -29,6 +29,8 @@ CONTAINERS = {
     "car": "car",
     "basket": "basket",
     "box": "box",
+    "bucket": "bucket",
+    "bag": "bag",
 }
 ITEMS = {
     "bear": "bear",
@@ -41,7 +43,8 @@ ITEMS = {
     "fish": "fish",
     "flower": "flower",
 }
-VERB = {"car": "into the car", "basket": "into the basket", "box": "into the box"}
+VERB = {"car": "into the car", "basket": "into the basket", "box": "into the box",
+        "bucket": "into the bucket", "bag": "into the bag"}
 
 _font_cache = {}
 

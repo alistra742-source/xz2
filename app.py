@@ -275,11 +275,13 @@ def api_order():
     if not security.limiter.hit(f"order:{acct['id']}", 12, 600):
         return jsonify({"error": "rate-limited"}), 429
     order, e = orders.create_order(acct, body.get("platform"), body.get("service"),
-                                   body.get("link"), body.get("nonce"))
+                                   body.get("link"), body.get("nonce"),
+                                   amount=body.get("amount"))
     if e:
         return jsonify({"error": e}), 400
     return jsonify({"order": {"id": order["id"], "status": order["status"],
-                              "baseline": order["baseline"], "target": order["target"]},
+                              "baseline": order["baseline"], "target": order["target"],
+                              "amount": order["amount"], "cost": order["cost"]},
                     "coins": int(accounts.get_account(acct["id"])["coins"])})
 
 

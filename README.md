@@ -34,6 +34,7 @@ docker build -t coinflow . && docker run -p 8080:8080 --env-file .env coinflow
 | `BROWSERS` / `PAGES_PER_BROWSER` | Worker pool size. Default **4 × 3 = 12 pages**. |
 | `PARALLEL_HEARTS` / `PARALLEL_FAVORITES` / `PARALLEL_SHARES` / `PARALLEL_VIEWS` | Pages allowed on the *same* order at once. Defaults **4 / 2 / 2 / 1**. |
 | `ZEFAME_TIMER_WAIT` / `ZEFAME_FINAL_WAIT` | Seconds to sit through Zefame's own counter, then hold. Defaults **105 / 20**. |
+| `ZEFAME_VIEWS_PER_RUN` / `ZEFAME_CYCLE_SECONDS` | Views per Zefame batch / seconds between batch starts (5.3 min). Defaults **300 / 318**. |
 | `WORKER_ENABLED` / `MONITOR_ENABLED` | Turn the browser pool / Zefoy health probe on or off. |
 | `ADSTERRA_SOCIALBAR_SRC`, `ADSTERRA_POPUNDER_SRC` | Public Adsterra placement script URLs for the social bar and popunder; defaults are prefilled in `.env.example`. |
 | `USE_TOR`, `PROXY_URL` | Optional egress proxying for the worker pool. |
@@ -54,9 +55,11 @@ docker build -t coinflow . && docker run -p 8080:8080 --env-file .env coinflow
 
 ## Captcha (ours, not a third party)
 
-* Photographic scene: real object cut-outs (bear / cat / dog / ball / apple / cup)
-  and containers (car / basket / box) composited at random positions over a
-  procedural backdrop with noise.
+* Photographic scene: real object cut-outs (bear / cat / dog / ball / apple /
+  cup / duck / fish / flower) and containers (car / basket / box / bucket /
+  bag) composited at random positions over a procedural backdrop with noise.
+  Sprites are high-resolution transparent cut-outs produced by
+  `scripts_postprocess.py` (green-screen key, fringe erosion, tight crop).
 * The instruction ("Drag the bear into the car") is **burnt into the image**,
   jittered per character — it is never sent as text, so a scripted client has to
   do OCR + object recognition.
@@ -96,15 +99,25 @@ Anti-bypass, all server-side:
 
 ## Rewards
 
-Pick platform → service → pay → paste link.
+Pick platform → service → **choose how many** → pay → paste link. Every
+service has a base price and the buyer picks any amount inside its min/max
+(step-quantised); the coin cost scales linearly and is **always recomputed
+server side** (`orders.price_for`), so a tampered client can never underpay.
 
-| Platform | Service | Price | Engine |
-|---|---|---|---|
-| TikTok | 25 likes | 10 coins | Zefoy |
-| TikTok | 1000 views | 5 coins | Zefoy |
-| TikTok | 100 favorites / 50 shares | 10 / 8 coins | Zefoy |
-| Instagram | 300 views | 5 coins | Zefame |
-| X, Telegram | — | — | "Soon will update" |
+| Platform | Service | Base price | Choosable range | Engine |
+|---|---|---|---|---|
+| TikTok | Likes | 10 coins / 25 | 25 – 1000 (step 25) | Zefoy |
+| TikTok | Views | 5 coins / 1000 | 500 – 10000 (step 500) | Zefoy |
+| TikTok | Favorites | 10 coins / 100 | 50 – 1000 (step 50) | Zefoy |
+| TikTok | Shares | 8 coins / 50 | 10 – 500 (step 10) | Zefoy |
+| Instagram | Views | 5 coins / 300 | 300 – 3000 (step 100) | Zefame |
+| X, Telegram | — | — | "Soon will update" | |
+
+The order form shows the live coin price for the chosen amount, and for
+Instagram views also the delivery estimate: Zefame delivers ~300 views per
+batch and only allows a new batch once per 5.3-minute cycle, so **1000 views
+= 4 batches ≈ 22 minutes** — the worker page sits through each cycle and the
+live cam shows the countdown between batches.
 
 * A background browser probes **zefoy.com every 5 seconds** and records which
   services are up. A service that is down on Zefoy is unselectable here (badge
@@ -143,11 +156,17 @@ shows running vs. completed order counts and which backend is live.
   a running order as slots free up, share the counter cache so the metric API is
   not hammered, and the moment any page reaches the target the rest see the
   order is no longer live and drop it.
-* Every account gets **one free demo delivery** (no ads, no coins).
+* Every account gets **one free demo delivery** (no ads, no coins) — it covers
+  the account's first order whatever amount the buyer selects.
 * Instagram orders open <https://zefame.com/en/free-instagram-views>, fill the
   link field and click *Get Now*. Zefame then runs its own ~1 minute counter, so
-  the page waits **105 s** for it to finish and holds a further **20 s** before
-  the browser leaves.
+  each batch waits **105 s** for it to finish and holds a further **20 s**.
+  Bigger orders run several batches: the site only allows a new batch once per
+  **5.3-minute cycle** (`ZEFAME_CYCLE_SECONDS`), so 1000 views = 4 batches
+  ≈ 22 minutes, with the cam showing the countdown between batches.
+* Zefoy favorites flow: after the search the engine answers the **"Select
+  limit"** dropdown with 100 (skipping it makes Zefoy reply "An error
+  occurred"), and any error response triggers a clean re-submit.
 
 ## Admin
 
@@ -173,7 +192,7 @@ mentions it. The Admin tab then appears with:
 | De-speckling | Python BFS per pixel | vectorised `scipy.ndimage.label` |
 | Dictionary fix-up | `SequenceMatcher` over 100k words | length-bucketed bounded Levenshtein |
 | Caching | in-process dict only | in-process **+ database** cache; wrong answers are actively forgotten |
-| Page load | full page, images/fonts/ads loaded | request routing blocks images, fonts, CSS, and all ad/analytics hosts (captcha image whitelisted) |
+| Page load | full page, images/fonts/ads loaded | only heavy media + ad/analytics hosts blocked — CSS/fonts/images stay ON so worker pages render exactly like a human browser (blocking CSS drew the site unstyled and broke element geometry) |
 | Session | captcha solved per page | **one shared browser context per browser** → solve once, all 3 pages inherit the cookie |
 
 Typical solve time drops from ~8-15 s to well under a second on a cache miss,

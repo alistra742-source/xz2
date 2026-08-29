@@ -1,5 +1,6 @@
 """Reward orders: pricing, atomic charging, link locks, queueing."""
 import hashlib
+import math
 import re
 import time
 
@@ -23,6 +24,30 @@ def link_key(platform, service, link):
     return hashlib.sha256(f"{platform}|{base}".encode()).hexdigest()[:32]
 
 
+def price_for(svc, amount):
+    """Quantise a requested amount to the service step (clamped to min/max)
+    and price it linearly off base_amount/base_cost, rounded up.
+
+    Returns (amount, cost).  The server always recomputes this — the client's
+    number is only a suggestion.
+    """
+    try:
+        amount = int(amount)
+    except Exception:
+        amount = int(svc["base_amount"])
+    step = max(1, int(svc.get("step", 1)))
+    amount -= amount % step
+    amount = max(int(svc["min"]), min(int(svc["max"]), amount))
+    cost = max(1, math.ceil(amount / int(svc["base_amount"]) * int(svc["base_cost"])))
+    return amount, cost
+
+
+def ig_eta_seconds(amount):
+    """Instagram views run in ~300-view batches, one batch per 5.3 min cycle."""
+    runs = max(1, math.ceil(int(amount) / config.ZEFAME_VIEWS_PER_RUN))
+    return runs * config.ZEFAME_CYCLE_SECONDS
+
+
 def catalogue():
     """Public menu with live zefoy availability folded in."""
     status = engine.service_status()
@@ -34,10 +59,16 @@ def catalogue():
                 state = status["services"].get(svc["zefoy_key"], "checking")
             else:
                 state = "up"
-            services.append({
-                "id": sid, "label": svc["label"], "cost": svc["cost"],
-                "amount": svc["amount"], "unit": svc["unit"], "state": state,
-            })
+            entry = {
+                "id": sid, "label": svc["label"], "cost": svc["base_cost"],
+                "amount": svc["base_amount"], "unit": svc["unit"], "state": state,
+                "base_amount": svc["base_amount"], "base_cost": svc["base_cost"],
+                "min": svc["min"], "max": svc["max"], "step": svc["step"],
+            }
+            if plat["engine"] == "zefame":
+                entry["per_run"] = config.ZEFAME_VIEWS_PER_RUN
+                entry["cycle_seconds"] = config.ZEFAME_CYCLE_SECONDS
+            services.append(entry)
         out[pid] = {
             "label": plat["label"],
             "engine": plat["engine"],
@@ -48,7 +79,7 @@ def catalogue():
     return out
 
 
-def create_order(account, platform, service_id, link, nonce=""):
+def create_order(account, platform, service_id, link, nonce="", amount=None):
     """Validate -> price -> charge -> enqueue, all in ONE transaction.
 
     Anti-bypass guarantees:
@@ -93,6 +124,8 @@ def create_order(account, platform, service_id, link, nonce=""):
         if not counters.valid_instagram_link(link):
             return None, "That does not look like an Instagram link."
 
+    qty, cost = price_for(svc, amount if amount is not None else svc["base_amount"])
+
     baseline, target = 0, 0
     metric_key = svc.get("zefoy_key")
     if plat["engine"] == "zefoy":
@@ -100,7 +133,7 @@ def create_order(account, platform, service_id, link, nonce=""):
         if not stats:
             return None, "Could not read that video's public counters. Check the link is public."
         baseline = int(stats.get(metric_key, 0))
-        target = baseline + int(svc["amount"])
+        target = baseline + qty
 
     key = link_key(platform, service_id, link)
     lock_until = time.time() + config.LINK_LOCK_SECONDS
@@ -141,7 +174,7 @@ def create_order(account, platform, service_id, link, nonce=""):
 
             # 5) free demo once, otherwise charge — the spend is conditional
             #    and part of this transaction, so it can never overdraw
-            charged = int(svc["cost"])
+            charged = cost
             if not bool(fresh["demo_used"]):
                 charged = 0
                 cur.execute(db._q("UPDATE accounts SET demo_used = ? WHERE id = ?"),
@@ -159,7 +192,7 @@ def create_order(account, platform, service_id, link, nonce=""):
                     " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?)"
                     " RETURNING id"),
                     (account["id"], platform, metric_key or service_id, link, key, charged,
-                     int(svc["amount"]), baseline, target, baseline, "", nonce, now, now)).fetchone()
+                     qty, baseline, target, baseline, "", nonce, now, now)).fetchone()
                 order_id = row["id"]
             except Exception:
                 raise OrderError("This order was already submitted — check your orders list.")

@@ -251,5 +251,16 @@ textarea{width:100%;resize:vertical;font-family:ui-monospace,monospace;font-size
 
 .svc .price .unit{font-size:13px;color:var(--mut2);font-weight:500;letter-spacing:0}
 
+/* amount chooser */
+.amt-row{margin:0 0 16px}
+.amt-row>label{margin-bottom:6px}
+#orderAmount{flex:0 0 130px;min-width:110px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.chips .btn{padding:5px 11px;font-size:12.5px}
+.chips .btn.sel{background:var(--txt);color:var(--ink);border-color:var(--txt)}
+#orderPrice{margin-top:6px}
+#orderPrice .coins{color:var(--txt);font-weight:650}
+#orderPrice .short{color:#e0a0a0}
+
 .cap-tray .row{gap:8px;flex-wrap:nowrap}
 .cap-tray span{flex:1;min-width:180px}

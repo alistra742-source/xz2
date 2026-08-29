@@ -74,6 +74,11 @@ LINK_LOCK_SECONDS = _i("LINK_LOCK_SECONDS", 300)   # 5 min global lock per link
 # it, then hold a little longer before the browser leaves the page.
 ZEFAME_TIMER_WAIT = _i("ZEFAME_TIMER_WAIT", 105)
 ZEFAME_FINAL_WAIT = _i("ZEFAME_FINAL_WAIT", 20)
+# One zefame batch delivers ~300 views, and a new batch can only start every
+# 5.3 minutes (the site's per-link cooldown).  Bigger IG orders therefore run
+# several batches back to back: 1000 views = 4 batches ≈ 22 minutes.
+ZEFAME_VIEWS_PER_RUN = _i("ZEFAME_VIEWS_PER_RUN", 300)
+ZEFAME_CYCLE_SECONDS = _i("ZEFAME_CYCLE_SECONDS", 318)
 
 # How many worker pages may hammer the SAME order at once, per service.
 # Likes benefit the most from fan-out, so they get the full four.
@@ -92,27 +97,35 @@ TOR_BASE_PORT = _i("TOR_BASE_PORT", 9050)
 CAPTCHA_SOLVER_WORKERS = _i("CAPTCHA_SOLVER_WORKERS", 6)
 
 # ---------------------------------------------------------------- catalogue
+# Buyers pick HOW MUCH they want; price scales linearly from base_amount /
+# base_cost (rounded up).  min/max/step bound and quantise the chooser.
 REWARDS = {
     "tiktok": {
         "label": "TikTok",
         "engine": "zefoy",
         "services": {
-            "hearts": {"label": "25 Likes", "amount": 25, "cost": 10, "unit": "likes",
-                       "zefoy_key": "hearts"},
-            "views": {"label": "1000 Views", "amount": 1000, "cost": 5, "unit": "views",
-                      "zefoy_key": "views"},
-            "favorites": {"label": "100 Favorites", "amount": 100, "cost": 10, "unit": "favorites",
-                          "zefoy_key": "favorites"},
-            "shares": {"label": "50 Shares", "amount": 50, "cost": 8, "unit": "shares",
-                       "zefoy_key": "shares"},
+            "hearts": {"label": "Likes", "unit": "likes", "zefoy_key": "hearts",
+                       "base_amount": 25, "base_cost": 10,
+                       "min": 25, "max": 1000, "step": 25},
+            "views": {"label": "Views", "unit": "views", "zefoy_key": "views",
+                      "base_amount": 1000, "base_cost": 5,
+                      "min": 500, "max": 10000, "step": 500},
+            "favorites": {"label": "Favorites", "unit": "favorites",
+                          "zefoy_key": "favorites",
+                          "base_amount": 100, "base_cost": 10,
+                          "min": 50, "max": 1000, "step": 50},
+            "shares": {"label": "Shares", "unit": "shares", "zefoy_key": "shares",
+                       "base_amount": 50, "base_cost": 8,
+                       "min": 10, "max": 500, "step": 10},
         },
     },
     "instagram": {
         "label": "Instagram",
         "engine": "zefame",
         "services": {
-            "ig_views": {"label": "300 Views", "amount": 300, "cost": 5, "unit": "views",
-                         "zefame": "views"},
+            "ig_views": {"label": "Views", "unit": "views", "zefame": "views",
+                         "base_amount": 300, "base_cost": 5,
+                         "min": 300, "max": 3000, "step": 100},
         },
     },
     "x": {"label": "X", "engine": "none", "services": {}},
