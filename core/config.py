@@ -53,7 +53,7 @@ AD_MAX_MISSED_BEATS = 2                           # tolerance before suspicion
 # ---------------------------------------------------------------- captcha
 CAPTCHA_SCENE_W = 640
 CAPTCHA_SCENE_H = 380
-CAPTCHA_TOLERANCE_PX = _i("CAPTCHA_TOLERANCE_PX", 78)   # ~2 cm of slack
+CAPTCHA_TOLERANCE_PX = _i("CAPTCHA_TOLERANCE_PX", 60)   # ~1.5 cm of slack
 CAPTCHA_REQUIRED_SOLVES = 2
 CAPTCHA_TTL_SECONDS = 300
 CAPTCHA_INTERVAL_SECONDS = _i("CAPTCHA_INTERVAL_SECONDS", 3600)   # re-verify hourly

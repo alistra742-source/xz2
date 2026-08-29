@@ -63,7 +63,7 @@ docker build -t coinflow . && docker run -p 8080:8080 --env-file .env coinflow
 * The instruction ("Drag the bear into the car") is **burnt into the image**,
   jittered per character — it is never sent as text, so a scripted client has to
   do OCR + object recognition.
-* Drop tolerance ≈ 78 px (~2 cm): you do not need the perfect spot, only inside
+* Drop tolerance ≈ 60 px (~1.5 cm): you do not need the perfect spot, only inside
   the object's neighbourhood — and closer to the right container than to any decoy.
 * Human-motion checks on the pointer trace: duration bounds, monotonic
   timestamps, path/straight-line ratio, inter-sample jitter variance, speed

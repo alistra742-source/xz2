@@ -160,7 +160,7 @@ def build_challenge(session_token, purpose="verify"):
     container_points = {}
     for name in [target_name] + decoys:
         sprite = _load(CONTAINERS[name])
-        scale = rnd.uniform(0.5, 0.68)
+        scale = rnd.uniform(0.4, 0.55)
         cw, ch = int(sprite.width * scale), int(sprite.height * scale)
         cx, cy = free_spot(cw // 2, ch // 2)
         rect = _paste(scene, sprite, cx, cy, scale, rnd.uniform(-4, 4))
@@ -174,7 +174,7 @@ def build_challenge(session_token, purpose="verify"):
     rnd.shuffle(scenery_pool)
     for name in scenery_pool[:rnd.randint(1, 3)]:
         sprite = _load(ITEMS[name])
-        scale = rnd.uniform(0.32, 0.5)
+        scale = rnd.uniform(0.24, 0.38)
         cw, ch = int(sprite.width * scale), int(sprite.height * scale)
         cx, cy = free_spot(cw // 2, ch // 2)
         placed.append(_paste(scene, sprite, cx, cy, scale, rnd.uniform(-10, 10)))
@@ -199,7 +199,7 @@ def build_challenge(session_token, purpose="verify"):
 
     # the draggable sprite, rendered separately for the tray
     item_sprite = _load(ITEMS[item_name])
-    item_scale = rnd.uniform(0.45, 0.6)
+    item_scale = rnd.uniform(0.34, 0.46)
     item_sprite = item_sprite.resize(
         (int(item_sprite.width * item_scale), int(item_sprite.height * item_scale)),
         Image.LANCZOS)
