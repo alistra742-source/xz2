@@ -241,6 +241,11 @@ CREATE TABLE IF NOT EXISTS captcha_cache (
     answer   TEXT NOT NULL,
     hits     INTEGER NOT NULL DEFAULT 1
 );
+CREATE TABLE IF NOT EXISTS demo_ips (
+    ip         TEXT PRIMARY KEY,
+    account_id INTEGER NOT NULL,
+    used_at    DOUBLE PRECISION NOT NULL
+);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_sessions_acct ON sessions(account_id);
 CREATE INDEX IF NOT EXISTS idx_orders_active ON orders(account_id) WHERE status IN ('queued', 'running');

@@ -42,6 +42,19 @@ def price_for(svc, amount):
     return amount, cost
 
 
+def ip_demo_used(ip):
+    """The free demo is per DEVICE (approximated by client IP), not per
+    account: making a second account on the same device must not grant a
+    second free order."""
+    if not ip:
+        return False
+    return bool(db.query_one("SELECT 1 AS x FROM demo_ips WHERE ip = ?", (ip,)))
+
+
+def demo_available(account, ip=""):
+    return not bool(account["demo_used"]) and not ip_demo_used(ip)
+
+
 def ig_eta_seconds(amount):
     """Instagram views run in ~300-view batches, one batch per 5.3 min cycle."""
     runs = max(1, math.ceil(int(amount) / config.ZEFAME_VIEWS_PER_RUN))
@@ -79,7 +92,7 @@ def catalogue():
     return out
 
 
-def create_order(account, platform, service_id, link, nonce="", amount=None):
+def create_order(account, platform, service_id, link, nonce="", amount=None, ip=""):
     """Validate -> price -> charge -> enqueue, all in ONE transaction.
 
     Anti-bypass guarantees:
@@ -172,13 +185,25 @@ def create_order(account, platform, service_id, link, nonce="", amount=None):
                                  f"{int(float(locked['locked_until']) - time.time())}s "
                                  f"(one order per link every 5 minutes).")
 
-            # 5) free demo once, otherwise charge — the spend is conditional
-            #    and part of this transaction, so it can never overdraw
+            # 5) free demo once per device, otherwise charge — the spend is
+            #    conditional and part of this transaction, so it can never
+            #    overdraw.  The demo is keyed to the client IP as well as the
+            #    account, so a second account on the same device pays.
             charged = cost
-            if not bool(fresh["demo_used"]):
+            ip_seen = None
+            if ip:
+                ip_seen = cur.execute(db._q("SELECT 1 AS x FROM demo_ips WHERE ip = ?"),
+                                      (ip,)).fetchone()
+            if not bool(fresh["demo_used"]) and not ip_seen:
                 charged = 0
                 cur.execute(db._q("UPDATE accounts SET demo_used = ? WHERE id = ?"),
                             (True if db.IS_PG else 1, account["id"]))
+                if ip:
+                    try:
+                        cur.execute(db._q("INSERT INTO demo_ips (ip, account_id, used_at)"
+                                          " VALUES (?, ?, ?)"), (ip, account["id"], now))
+                    except Exception:
+                        pass
             elif not accounts.try_spend_on(cur, account["id"], charged):
                 raise OrderError("Not enough coins.")
 

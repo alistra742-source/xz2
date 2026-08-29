@@ -131,7 +131,11 @@ def api_me():
     if not acct:
         return jsonify({"account": None, "site": config.SITE_NAME})
     accounts.touch(acct["id"])
-    return jsonify({"account": accounts.public_account(acct, sess)})
+    pub = accounts.public_account(acct, sess)
+    # demo is per device: a second account on this IP gets no free try
+    pub["demo_available"] = bool(pub["demo_available"]) and \
+        not orders.ip_demo_used(security.client_ip(request))
+    return jsonify({"account": pub})
 
 
 # ------------------------------------------------------------------ captcha
@@ -276,7 +280,7 @@ def api_order():
         return jsonify({"error": "rate-limited"}), 429
     order, e = orders.create_order(acct, body.get("platform"), body.get("service"),
                                    body.get("link"), body.get("nonce"),
-                                   amount=body.get("amount"))
+                                   amount=body.get("amount"), ip=ip)
     if e:
         return jsonify({"error": e}), 400
     return jsonify({"order": {"id": order["id"], "status": order["status"],

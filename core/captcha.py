@@ -121,7 +121,7 @@ def _paste(scene, sprite, cx, cy, scale=1.0, rot=0.0):
     return (cx, cy, sprite.width, sprite.height)
 
 
-def _rects_overlap(a, b, pad=14):
+def _rects_overlap(a, b, pad=22):
     ax, ay, aw, ah = a
     bx, by, bw, bh = b
     return (abs(ax - bx) * 2 < (aw + bw + pad * 2)) and (abs(ay - by) * 2 < (ah + bh + pad * 2))
@@ -147,7 +147,7 @@ def build_challenge(session_token, purpose="verify"):
     placed = []
     spots = []
 
-    def free_spot(halfw, halfh, tries=60):
+    def free_spot(halfw, halfh, tries=90):
         for _ in range(tries):
             cx = rnd.randint(halfw + 20, W - halfw - 20)
             cy = rnd.randint(int(H * 0.32), H - halfh - 16)
@@ -160,7 +160,7 @@ def build_challenge(session_token, purpose="verify"):
     container_points = {}
     for name in [target_name] + decoys:
         sprite = _load(CONTAINERS[name])
-        scale = rnd.uniform(0.72, 1.0)
+        scale = rnd.uniform(0.5, 0.68)
         cw, ch = int(sprite.width * scale), int(sprite.height * scale)
         cx, cy = free_spot(cw // 2, ch // 2)
         rect = _paste(scene, sprite, cx, cy, scale, rnd.uniform(-4, 4))
@@ -174,7 +174,7 @@ def build_challenge(session_token, purpose="verify"):
     rnd.shuffle(scenery_pool)
     for name in scenery_pool[:rnd.randint(1, 3)]:
         sprite = _load(ITEMS[name])
-        scale = rnd.uniform(0.45, 0.7)
+        scale = rnd.uniform(0.32, 0.5)
         cw, ch = int(sprite.width * scale), int(sprite.height * scale)
         cx, cy = free_spot(cw // 2, ch // 2)
         placed.append(_paste(scene, sprite, cx, cy, scale, rnd.uniform(-10, 10)))
@@ -199,7 +199,7 @@ def build_challenge(session_token, purpose="verify"):
 
     # the draggable sprite, rendered separately for the tray
     item_sprite = _load(ITEMS[item_name])
-    item_scale = rnd.uniform(0.62, 0.8)
+    item_scale = rnd.uniform(0.45, 0.6)
     item_sprite = item_sprite.resize(
         (int(item_sprite.width * item_scale), int(item_sprite.height * item_scale)),
         Image.LANCZOS)
