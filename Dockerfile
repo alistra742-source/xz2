@@ -13,7 +13,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install -r requirements.txt && playwright install chromium
+RUN pip install -r requirements.txt \
+    && (pip install tesserocr || true) \
+    && playwright install chromium
 
 COPY . .
 

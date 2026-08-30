@@ -7,3 +7,4 @@ scipy>=1.11
 pytesseract>=0.3.10
 playwright>=1.44
 requests>=2.31
+ddddocr>=1.4

@@ -56,10 +56,15 @@ docker build -t coinflow . && docker run -p 8080:8080 --env-file .env coinflow
 ## Captcha (ours, not a third party)
 
 * Photographic scene: real object cut-outs (bear / cat / dog / ball / apple /
-  cup / duck / fish / flower) and containers (car / basket / box / bucket /
-  bag) composited at random positions over a procedural backdrop with noise.
-  Sprites are high-resolution transparent cut-outs produced by
-  `scripts_postprocess.py` (green-screen key, fringe erosion, tight crop).
+  cup / duck / fish / flower / frog / hat / book) and containers (car /
+  basket / box / bucket / bag) composited at random positions over a
+  procedural backdrop.  Every challenge is visually unique: sprites are
+  randomly mirrored, one distractor can sit *behind* a container (real
+  occlusion), the backdrop gets a subtle stripe/dot/checker pattern layer,
+  and the burnt-in instruction rotates wording ("Drag/Put/Move the …") and
+  banner style (dark / light / accent).  Sprites are high-resolution
+  transparent cut-outs produced by `scripts_postprocess.py` (green-screen
+  key, fringe erosion, tight crop).
 * The instruction ("Drag the bear into the car") is **burnt into the image**,
   jittered per character — it is never sent as text, so a scripted client has to
   do OCR + object recognition.
@@ -185,20 +190,26 @@ mentions it. The Admin tab then appears with:
 
 ---
 
-## Solver — what changed vs. the reference
+## Solver — multi-backend ensemble
 
-| | reference | here |
+| | previous | now |
 |---|---|---|
-| OCR passes | ~40 sequential Tesseract calls | 6 calls over 3 high-signal variants, **run in parallel** |
-| Early exit | none, always scored everything | stops the moment two passes agree on a dictionary word |
-| De-speckling | Python BFS per pixel | vectorised `scipy.ndimage.label` |
-| Dictionary fix-up | `SequenceMatcher` over 100k words | length-bucketed bounded Levenshtein |
-| Caching | in-process dict only | in-process **+ database** cache; wrong answers are actively forgotten |
-| Page load | full page, images/fonts/ads loaded | only heavy media + ad/analytics hosts blocked — CSS/fonts/images stay ON so worker pages render exactly like a human browser (blocking CSS drew the site unstyled and broke element geometry) |
-| Session | captcha solved per page | **one shared browser context per browser** → solve once, all 3 pages inherit the cookie |
+| OCR backends | Tesseract only (pytesseract spawns a process per call) | **ddddocr** (ONNX model trained on captchas, ~10-30 ms) → **tesserocr** (persistent in-process Tesseract) → pytesseract fallback |
+| Strike lines | median filter blur | vectorised horizontal morphological opening **removes the lines before OCR** |
+| Binarisation | Otsu | Otsu **+ Sauvola adaptive** + projection-profile deskew |
+| Decision | two agreeing passes | weighted ensemble vote (backend strength × Tesseract confidence) + length-bucketed dictionary snap |
+| Fast path | none | a ddddocr read that is a dictionary word returns immediately |
+| Caching | in-process + database | same, wrong answers actively forgotten |
 
-Typical solve time drops from ~8-15 s to well under a second on a cache miss,
-and to microseconds on a repeat image.
+Bench on synthetic Zefoy-style captchas (jittered glyphs, noise dots, 1-2
+strike lines, skew — `scripts_solver_bench.py`): **97.5% exact-match accuracy
+at ~30 ms mean** per solve on this machine, versus the old Tesseract-only
+pipeline at 0.3-1.2 s that regularly misread struck-through words.
+
+Page load: only heavy media + ad/analytics hosts are blocked — CSS/fonts/images
+stay ON so worker pages render exactly like a human browser (blocking CSS drew
+the site unstyled and broke element geometry).  Session: **one shared browser
+context per browser** → captcha solved once, all pages inherit the cookie.
 
 ---
 

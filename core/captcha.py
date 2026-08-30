@@ -42,7 +42,12 @@ ITEMS = {
     "duck": "duck",
     "fish": "fish",
     "flower": "flower",
+    "frog": "frog",
+    "hat": "hat",
+    "book": "book",
 }
+PHRASES = ("Drag the {item} {verb}", "Put the {item} {verb}",
+           "Move the {item} {verb}")
 VERB = {"car": "into the car", "basket": "into the basket", "box": "into the box",
         "bucket": "into the bucket", "bag": "into the bag"}
 
@@ -94,6 +99,29 @@ def _backdrop(w, h, seed):
                          rnd.randint(12, 34)))
     blob = blob.filter(ImageFilter.GaussianBlur(28))
     img = Image.alpha_composite(img.convert("RGBA"), blob)
+    # subtle repeating pattern layer — every scene looks different and flat
+    # template matching never gets the same backdrop twice
+    pat = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    pd = ImageDraw.Draw(pat)
+    kind = rnd.choice(("stripes", "dots", "checker", "none"))
+    tint = (255, 255, 255, rnd.randint(7, 14))
+    if kind == "stripes":
+        step = rnd.randint(26, 44)
+        for x0 in range(-h, w, step):
+            pd.line([(x0, 0), (x0 + h, h)], fill=tint, width=rnd.randint(4, 9))
+    elif kind == "dots":
+        step = rnd.randint(24, 40)
+        for yy in range(0, h, step):
+            for xx in range(0, w, step):
+                pd.ellipse([xx - 2, yy - 2, xx + 2, yy + 2], fill=tint)
+    elif kind == "checker":
+        step = rnd.randint(30, 52)
+        for yy in range(0, h, step):
+            for xx in range(0, w, step):
+                if (xx // step + yy // step) % 2 == 0:
+                    pd.rectangle([xx, yy, xx + step, yy + step], fill=tint)
+    if kind != "none":
+        img = Image.alpha_composite(img, pat)
     # ground plane (drawn on its own layer so the alpha actually blends)
     ground = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     gd = ImageDraw.Draw(ground)
@@ -156,10 +184,34 @@ def build_challenge(session_token, purpose="verify"):
                 return cx, cy
         return rnd.randint(80, W - 80), rnd.randint(int(H * 0.4), H - 70)
 
+    def _sprite(name, flip_p=0.5):
+        s = _load(name)
+        if rnd.random() < flip_p:                     # mirror variety
+            s = s.transpose(Image.FLIP_LEFT_RIGHT)
+        return s
+
+    # scenery items (distractors already sitting in the scene); one of them
+    # may be placed BEHIND a container for real depth occlusion
+    item_name = rnd.choice(list(ITEMS))
+    scenery_pool = [i for i in ITEMS if i != item_name]
+    rnd.shuffle(scenery_pool)
+    scenery = scenery_pool[:rnd.randint(1, 3)]
+    occluder = scenery[0] if scenery and rnd.random() < 0.4 else None
+
+    def _place_scenery(name):
+        sprite = _sprite(ITEMS[name])
+        scale = rnd.uniform(0.24, 0.38)
+        cw, ch = int(sprite.width * scale), int(sprite.height * scale)
+        cx, cy = free_spot(cw // 2, ch // 2)
+        placed.append(_paste(scene, sprite, cx, cy, scale, rnd.uniform(-10, 10)))
+
+    if occluder:
+        _place_scenery(occluder)                      # behind the containers
+
     # containers (target + decoys)
     container_points = {}
     for name in [target_name] + decoys:
-        sprite = _load(CONTAINERS[name])
+        sprite = _sprite(CONTAINERS[name], flip_p=0.35)
         scale = rnd.uniform(0.4, 0.55)
         cw, ch = int(sprite.width * scale), int(sprite.height * scale)
         cx, cy = free_spot(cw // 2, ch // 2)
@@ -168,28 +220,30 @@ def build_challenge(session_token, purpose="verify"):
         container_points[name] = (cx, cy)
         spots.append(rect)
 
-    # scenery items (distractors already sitting in the scene)
-    item_name = rnd.choice(list(ITEMS))
-    scenery_pool = [i for i in ITEMS if i != item_name]
-    rnd.shuffle(scenery_pool)
-    for name in scenery_pool[:rnd.randint(1, 3)]:
-        sprite = _load(ITEMS[name])
-        scale = rnd.uniform(0.24, 0.38)
-        cw, ch = int(sprite.width * scale), int(sprite.height * scale)
-        cx, cy = free_spot(cw // 2, ch // 2)
-        placed.append(_paste(scene, sprite, cx, cy, scale, rnd.uniform(-10, 10)))
+    for name in scenery:
+        if name != occluder:
+            _place_scenery(name)
 
-    # instruction burnt into the picture, slightly warped
-    prompt = f"Drag the {item_name} {VERB[target_name]}"
+    # instruction burnt into the picture, slightly warped; wording and banner
+    # style rotate so no two challenges share the same pixels
+    prompt = rnd.choice(PHRASES).format(item=item_name, verb=VERB[target_name])
     banner = Image.new("RGBA", (W, 46), (0, 0, 0, 0))
     bd = ImageDraw.Draw(banner)
-    bd.rounded_rectangle([10, 6, W - 10, 42], 12, fill=(12, 14, 22, 205))
+    style = rnd.choice(("dark", "light", "accent"))
+    if style == "dark":
+        bg, fg = (12, 14, 22, 205), (255, 255, 255, 240)
+    elif style == "light":
+        bg, fg = (245, 245, 246, 200), (18, 18, 22, 240)
+    else:
+        bg, fg = (rnd.randint(20, 70), rnd.randint(60, 120), rnd.randint(140, 200), 215), \
+                 (255, 255, 255, 245)
+    bd.rounded_rectangle([10, 6, W - 10, 42], 12, fill=bg)
     f = _font(22)
     tw = bd.textlength(prompt, font=f)
     x = (W - tw) / 2
     for ch in prompt:
         dy = rnd.uniform(-2.5, 2.5)
-        bd.text((x, 11 + dy), ch, font=f, fill=(255, 255, 255, 240))
+        bd.text((x, 11 + dy), ch, font=f, fill=fg)
         x += bd.textlength(ch, font=f) + rnd.uniform(-0.4, 1.1)
     scene.alpha_composite(banner, (0, 2))
 
