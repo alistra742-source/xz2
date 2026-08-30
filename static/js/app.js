@@ -12,6 +12,7 @@ const state = {
   platform: null,
   service: null,
   amounts: {},
+  orderBusy: false,
   adRun: null,
   adBusy: false,
   adGeneration: 0,
@@ -555,7 +556,8 @@ function showOrderForm() {
   renderChips(s);
   refreshPrice(false);
   const demo = state.account && state.account.demo_available
-    ? ' — your FREE demo try will cover this order (no coins spent).' : '';
+    ? ` — your FREE demo try covers one base order (up to ${s.base_amount} ` +
+      `${s.unit}); anything bigger is a normal paid order.` : '';
   $('#orderHint').textContent = demo + (state.platform === 'tiktok'
     ? `We read your current ${s.unit} first, then push until it reaches current + your amount.`
     : `Delivered in ~${s.per_run}-view batches — one batch per ` +
@@ -592,11 +594,14 @@ function refreshPrice(commit) {
     const runs = Math.ceil(q / s.per_run);
     eta = ` · ${runs} batch${runs > 1 ? 'es' : ''} · ≈ ${Math.ceil(runs * s.cycle_seconds / 60)} min`;
   }
-  const short = state.account && !state.account.demo_available &&
-                cost > state.account.coins;
+  const demoCovers = state.account && state.account.demo_available &&
+                     q <= s.base_amount;
+  const short = state.account && !demoCovers && cost > state.account.coins;
   $('#orderPrice').innerHTML =
     `${q} ${s.unit} = <span class="coins">${cost} coins</span>${eta}` +
-    (short ? ' <span class="short">— not enough coins</span>' : '');
+    (demoCovers ? ' <span class="ok">— covered by your FREE demo</span>'
+     : short ? ' <span class="short">— not enough coins</span>' : '');
+  $('#orderSubmit').disabled = short || state.orderBusy;
   $$('#amountChips .btn').forEach(b => b.classList.toggle('sel', +b.dataset.a === q));
 }
 
@@ -640,6 +645,7 @@ $('#orderForm').addEventListener('submit', async e => {
   e.preventDefault();
   const link = $('#orderLink').value.trim();
   if (!link || $('#orderSubmit').disabled) return;
+  state.orderBusy = true;
   $('#orderSubmit').disabled = true;
   try {
     const d = await api('/api/rewards/order', {
@@ -651,7 +657,8 @@ $('#orderForm').addEventListener('submit', async e => {
     $('#orderLink').value = '';
     await refreshMe(); await loadOrders();
   } catch (err) { toast(err.message, 'bad'); }
-  $('#orderSubmit').disabled = false;
+  state.orderBusy = false;
+  refreshPrice(false);
 });
 
 async function loadOrders() {

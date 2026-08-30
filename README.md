@@ -157,7 +157,9 @@ shows running vs. completed order counts and which backend is live.
   not hammered, and the moment any page reaches the target the rest see the
   order is no longer live and drop it.
 * Every account gets **one free demo delivery** (no ads, no coins) — it covers
-  the account's first order whatever amount the buyer selects.
+  the first order up to the service's base amount (e.g. 100 favorites).
+  Selecting more than the base turns it into a normal paid order, so a
+  5-coin balance can never walk off with a 100-coin order.
 * Instagram orders open <https://zefame.com/en/free-instagram-views>, fill the
   link field and click *Get Now*. Zefame then runs its own ~1 minute counter, so
   each batch waits **105 s** for it to finish and holds a further **20 s**.

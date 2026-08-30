@@ -188,13 +188,16 @@ def create_order(account, platform, service_id, link, nonce="", amount=None, ip=
             # 5) free demo once per device, otherwise charge — the spend is
             #    conditional and part of this transaction, so it can never
             #    overdraw.  The demo is keyed to the client IP as well as the
-            #    account, so a second account on the same device pays.
+            #    account, so a second account on the same device pays, and it
+            #    only covers a BASE-size order — selecting more than the base
+            #    amount is a normal paid purchase that needs the coins.
             charged = cost
             ip_seen = None
             if ip:
                 ip_seen = cur.execute(db._q("SELECT 1 AS x FROM demo_ips WHERE ip = ?"),
                                       (ip,)).fetchone()
-            if not bool(fresh["demo_used"]) and not ip_seen:
+            demo_eligible = not bool(fresh["demo_used"]) and not ip_seen
+            if demo_eligible and qty <= int(svc["base_amount"]):
                 charged = 0
                 cur.execute(db._q("UPDATE accounts SET demo_used = ? WHERE id = ?"),
                             (True if db.IS_PG else 1, account["id"]))

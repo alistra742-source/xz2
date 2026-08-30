@@ -262,6 +262,7 @@ textarea{width:100%;resize:vertical;font-family:ui-monospace,monospace;font-size
 #orderPrice{margin-top:6px}
 #orderPrice .coins{color:var(--txt);font-weight:650}
 #orderPrice .short{color:#e0a0a0}
+#orderPrice .ok{color:var(--ok)}
 
 .cap-tray .row{gap:8px;flex-wrap:nowrap}
 .cap-tray span{flex:1;min-width:180px}
