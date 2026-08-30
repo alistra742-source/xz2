@@ -122,7 +122,9 @@ Timers live in `config.SERVICE_WAIT` and are env-overridable via
 `SERVICE_WAIT_JSON` (e.g. `{"favorites": 600}`). While the timer runs the
 orders list shows `TIMER — dispatches in mm:ss` and the wait room keeps
 serving ads; the worker pool only claims orders whose `ready_at` has passed
-(`engine.claim_order`).
+(`engine.claim_order`). Orders then run **strictly one at a time** — while
+any order is running (on either platform) every other order waits in the
+queue until it finishes.
 
 The order form shows the amount and timer, and for
 Instagram views also the delivery estimate: Zefame delivers ~300 views per

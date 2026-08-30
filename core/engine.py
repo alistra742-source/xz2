@@ -337,9 +337,10 @@ def parallel_cap(service):
 def claim_order(engine_kind):
     """Grab work for this page.
 
-    Services with a parallel cap above 1 (likes especially) let several worker
-    pages attack the SAME order at once, which is what makes them land fast.
-    Everything else stays strictly one page per order.
+    Orders run strictly ONE AT A TIME: while any order is running, no other
+    order is started — the rest wait in the queue.  The single running order
+    can, however, be worked by several pages at once when its parallel cap
+    allows it (likes especially), which is what makes them land fast.
     """
     with _claim_lock:
         platform = "tiktok" if engine_kind == "zefoy" else "instagram"
@@ -360,6 +361,12 @@ def claim_order(engine_kind):
                            " ELSE 0 END WHERE id = ?", (o["id"],))
 
         # 2. otherwise start the oldest queued order whose wait timer expired
+        #    — but ONLY when nothing is running anywhere.  Orders run strictly
+        #    one at a time (across both platforms): every other order waits in
+        #    the queue until the running one finishes.
+        busy = db.query_one("SELECT id FROM orders WHERE status = 'running' LIMIT 1")
+        if busy:
+            return None
         rows = db.query("SELECT * FROM orders WHERE status = 'queued' AND platform = ?"
                         " AND ready_at <= ? ORDER BY id ASC LIMIT 1",
                         (platform, time.time()))
