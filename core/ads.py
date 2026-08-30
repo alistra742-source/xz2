@@ -80,6 +80,9 @@ def issue_slot(run):
         "total": int(run["required"]),
         "seconds": config.AD_MIN_SECONDS,
         "beat": config.AD_HEARTBEAT_SECONDS,
+        "smartlink": config.ADSTERRA_SMARTLINKS[int(run["done"]) %
+                                               len(config.ADSTERRA_SMARTLINKS)]
+        if config.ADSTERRA_SMARTLINKS else "",
     }, None
 
 

@@ -79,7 +79,13 @@ docker build -t coinflow . && docker run -p 8080:8080 --env-file .env coinflow
 
 ## Get Coins — ad flow
 
-The page loads the configured Adsterra social bar before `</head>` and the popunder immediately above `</body>`. The rewarded flow below remains server-validated; provider scripts do not receive or contain account credentials.
+The page loads the configured Adsterra social bar before `</head>`. The old
+random popunder was dropped (ads firing at random moments); instead every ad
+slot in the rewarded flow shows an **"Open sponsor" button carrying an
+Adsterra SmartLink** — the five links in `ADSTERRA_SMARTLINKS` rotate one per
+ad — and the slot's countdown only starts once the sponsor is actually
+opened. The rewarded flow remains server-validated; provider scripts do not
+receive or contain account credentials.
 
 
 | Pack | Ads | Reward |

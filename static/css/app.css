@@ -264,5 +264,10 @@ textarea{width:100%;resize:vertical;font-family:ui-monospace,monospace;font-size
 #orderPrice .short{color:#e0a0a0}
 #orderPrice .ok{color:var(--ok)}
 
+/* sponsored smartlink button inside the ad stage */
+.sponsor-btn{margin-top:14px;display:inline-block;text-decoration:none}
+.sponsor-btn.opened{opacity:.55}
+#adSponsorNote{display:block;margin-top:8px}
+
 .cap-tray .row{gap:8px;flex-wrap:nowrap}
 .cap-tray span{flex:1;min-width:180px}
