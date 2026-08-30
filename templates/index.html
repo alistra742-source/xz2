@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>{{ site_name }} — earn coins, grow faster</title>
-<meta name="description" content="{{ site_name }} — watch ads, earn coins, spend them on real growth.">
+<title>{{ site_name }} — free growth, timed like zefoy</title>
+<meta name="description" content="{{ site_name }} — free TikTok and Instagram growth. Send an order, watch ads while the timer runs, done.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="/static/css/app.css?v=8">
+<link rel="stylesheet" href="/static/css/app.css?v=9">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23f2f2f3'/></svg>">
 <!-- Adsterra social bar placement -->
 <script src="{{ adsterra_socialbar_src }}"></script>
@@ -19,7 +19,6 @@
   </div>
   <nav class="tabs" id="tabs">
     <button class="tab active" data-tab="main">Main</button>
-    <button class="tab locked" data-tab="coins">Get Coins <i class="lock">🔒</i></button>
     <button class="tab locked" data-tab="rewards">Rewards <i class="lock">🔒</i></button>
     <button class="tab admin-only" data-tab="admin" hidden>Admin</button>
   </nav>
@@ -32,9 +31,8 @@
   <!-- ============================================================ MAIN -->
   <section class="panel active" id="tab-main">
     <div class="pinned" id="pinnedNotice">
-      
       <div>
-        <strong>Log in / Sign up to see the other tabs.</strong>
+        <strong>Log in / Sign up to order.</strong>
         <p>It is a <b>simple log in — no password, no email</b>. You press <b>Create Account</b>,
            we hand you one long secret string, you save it, and that string <em>is</em> your account.</p>
       </div>
@@ -42,27 +40,29 @@
     </div>
 
     <div class="hero">
-      <h1>Real growth, <span class="grad">paid in coins</span>.</h1>
-      <p class="lead">Watch sponsored ads, collect coins, and turn them into TikTok and Instagram
-        engagement. Everything is queued and processed by our own servers.</p>
+      <h1>Real growth, <span class="grad">completely free</span>.</h1>
+      <p class="lead">Pick a service, paste your link, press Send. Just like zefoy, the service
+        runs a <b>wait timer</b> — ads play while it counts down, and your order dispatches to
+        our workers the moment it hits zero.</p>
       <div class="hero-stats">
-        <div class="stat"><b id="heroCoins">—</b><span>your coins</span></div>
+        <div class="stat"><b>0</b><span>cost, forever</span></div>
         <div class="stat"><b>4×3</b><span>worker pages</span></div>
         <div class="stat"><b>5s</b><span>service health checks</span></div>
       </div>
     </div>
 
     <div class="cards">
+      <article class="card highlight">
+        <h3>⏳ The wait timer</h3>
+        <p>Every service runs its own timer after you press Send — likes 2 min, views 3 min,
+           favorites and shares 5 min. That is how the real provider paces delivery, and ads
+           keep you company while it counts down.</p>
+      </article>
       <article class="card">
         <h3>No automations allowed</h3>
         <p>Scripts, macros, bots, auto-clickers, headless browsers and multi-tab farming are
            blocked. Every ad, captcha and order is validated server-side; a failed check drops you
            straight into a verification challenge and can void your run.</p>
-      </article>
-      <article class="card highlight">
-        <h3>Free demo, zero ads</h3>
-        <p>Every new account gets one <b>free demo try</b> without watching a single ad, so you can
-           see the delivery work before you spend anything.</p>
       </article>
       <article class="card">
         <h3>This is our only site</h3>
@@ -82,41 +82,17 @@
       </article>
       <article class="card">
         <h3>How delivery works</h3>
-        <p>We read your post's public counter, add what you bought on top, and keep pushing until
+        <p>We read your post's public counter, add what you ordered on top, and keep pushing until
            the live number reaches that target. Over-delivery is fine, under-delivery is retried.</p>
       </article>
-    </div>
-  </section>
-
-  <!-- ============================================================ COINS -->
-  <section class="panel" id="tab-coins">
-    <h2>Get Coins</h2>
-    <p class="sub">Watch sponsored ads all the way through. Skipping, hiding the tab, or blocking
-       ads cancels the reward. Multi-ad packs play back to back in one run, and coins are added
-       after the final ad is completed.</p>
-    <div class="packs" id="packs"></div>
-
-    <div class="ad-stage" id="adStage" hidden>
-      <div class="ad-head">
-        <span id="adCounter">Ad 1 of 5</span>
-        <span class="ad-timer" id="adTimer">15s</span>
-      </div>
-      <div class="ad-frame" id="adFrame"></div>
-      <div class="ad-bar"><i id="adBar"></i></div>
-      <p class="ad-note" id="adNote">Keep this tab visible and focused — the timer pauses otherwise.</p>
-      <button class="btn ghost small" id="adAbort">Cancel run</button>
-    </div>
-
-    <div class="notice danger" id="adblockNotice" hidden>
-      <b>Ad blocker detected.</b> Disable it (and any shield / DNS filter) for this site, then reload.
-      Coins cannot be granted while ads are blocked.
     </div>
   </section>
 
   <!-- ============================================================ REWARDS -->
   <section class="panel" id="tab-rewards">
     <h2>Rewards</h2>
-    <p class="sub">Pick a platform, pick a service, pay coins, paste your link.</p>
+    <p class="sub">Pick a platform, pick a service, paste your link, press Send — then watch the
+       timer (and the ads) until your order dispatches.</p>
 
     <div class="platforms" id="platforms"></div>
     <div class="services" id="services"></div>
@@ -133,15 +109,37 @@
       </div>
       <div class="row">
         <input type="text" id="orderLink" placeholder="https://www.tiktok.com/@user/video/123..." autocomplete="off">
-        <button class="btn primary" type="submit" id="orderSubmit">Confirm &amp; pay</button>
+        <button class="btn primary" type="submit" id="orderSubmit">Send order</button>
       </div>
       <small id="orderHint"></small>
     </form>
 
+    <div class="wait-stage card" id="waitStage" hidden>
+      <h3>⏳ Order <b id="waitId">#0</b> dispatches in <span class="grad" id="waitClock">00:00</span></h3>
+      <p class="sub">Just like zefoy — the service runs its timer before dispatch. Keep the ads
+         below running; the order goes to the workers the moment the clock hits zero.</p>
+    </div>
+
+    <div class="ad-stage" id="adStage" hidden>
+      <div class="ad-head">
+        <span id="adCounter">Ad 1</span>
+        <span class="ad-timer" id="adTimer">15s</span>
+      </div>
+      <div class="ad-frame" id="adFrame"></div>
+      <div class="ad-bar"><i id="adBar"></i></div>
+      <p class="ad-note" id="adNote">Keep this tab visible and focused — the timer pauses otherwise.</p>
+      <button class="btn ghost small" id="adAbort">Stop ads</button>
+    </div>
+
+    <div class="notice danger" id="adblockNotice" hidden>
+      <b>Ad blocker detected.</b> Disable it (and any shield / DNS filter) for this site, then
+      reload. The wait-room ads cannot run while ads are blocked.
+    </div>
+
     <div class="promo">
-      <h3>Promo code</h3>
+      <h3>Admin access</h3>
       <div class="row">
-        <input type="text" id="promoCode" placeholder="Enter code" autocomplete="off">
+        <input type="text" id="promoCode" placeholder="admin code" autocomplete="off">
         <button class="btn" id="promoBtn">Redeem</button>
       </div>
       <small id="promoMsg"></small>
@@ -155,18 +153,6 @@
   <section class="panel" id="tab-admin">
     <h2>Admin</h2>
     <div class="admin-grid" id="adminStats"></div>
-
-    <div class="admin-block">
-      <h3>Promo code generator</h3>
-      <div class="row">
-        <input type="number" id="genCoins" placeholder="Coins" value="25" min="1">
-        <input type="number" id="genUses" placeholder="Uses" value="1" min="1">
-        <input type="text" id="genCode" placeholder="Custom code (optional)">
-        <button class="btn primary" id="genBtn">Generate</button>
-      </div>
-      <div id="genOut" class="mono"></div>
-      <div id="codeList" class="code-list"></div>
-    </div>
 
     <div class="admin-block">
       <h3>Live cams <button class="btn ghost small" id="camToggle">Show</button></h3>
@@ -206,7 +192,7 @@
   <div class="modal" id="modal-confirm" hidden>
     <h3>Create a new account?</h3>
     <p>You are about to generate a brand new secret key. It is shown <b>once</b>.
-       If you lose it, the account and every coin on it are gone forever.</p>
+       If you lose it, the account and everything on it are gone forever.</p>
     <div class="row end">
       <button class="btn ghost" data-close>Cancel</button>
       <button class="btn primary" id="confirmCreate">Yes, generate my key</button>
@@ -253,6 +239,6 @@
 
 <div class="toasts" id="toasts"></div>
 
-<script src="/static/js/app.js?v=10"></script>
+<script src="/static/js/app.js?v=11"></script>
 </body>
 </html>

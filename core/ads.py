@@ -31,16 +31,15 @@ def bait_seen(bait_id):
     return bool(ts and time.time() - ts < _BAIT_TTL)
 
 
-def open_session(account_id, pack):
-    spec = config.COIN_PACKS.get(pack)
-    if not spec:
-        return None, "unknown-pack"
+def open_session(account_id):
+    """Open-ended session: ads keep coming until the client ends it (when the
+    order's wait timer hits zero).  required is just a high ceiling."""
     db.execute("UPDATE ad_sessions SET state = 'void' WHERE account_id = ? AND state IN ('open','challenge')",
                (account_id,))
     sid = db.insert_returning_id(
         "INSERT INTO ad_sessions (account_id, pack, required, done, coins, state, created_at)"
-        " VALUES (?, ?, ?, 0, ?, 'open', ?)",
-        (account_id, pack, spec["ads"], spec["coins"], time.time()),
+        " VALUES (?, 'wait', 999, 0, 0, 'open', ?)",
+        (account_id, time.time()),
     )
     return db.query_one("SELECT * FROM ad_sessions WHERE id = ?", (sid,)), None
 
@@ -138,12 +137,7 @@ def complete_slot(run, ticket, bait_id, client_flags):
     db.execute("UPDATE accounts SET ads_watched = ads_watched + 1 WHERE id = ?", (run["account_id"],))
     db.bump_stat("ads_watched", 1)
 
-    payload = {"ok": True, "done": done, "required": int(run["required"]), "finished": finished}
-    if finished:
-        from . import accounts
-        accounts.add_coins(run["account_id"], int(run["coins"]))
-        payload["coins_awarded"] = int(run["coins"])
-    return payload
+    return {"ok": True, "done": done, "required": int(run["required"]), "finished": finished}
 
 
 def clear_challenge(run):

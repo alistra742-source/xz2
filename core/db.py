@@ -224,6 +224,7 @@ CREATE TABLE IF NOT EXISTS orders (
     workers    INTEGER NOT NULL DEFAULT 0,
     message    TEXT DEFAULT '',
     nonce      TEXT,
+    ready_at   DOUBLE PRECISION NOT NULL DEFAULT 0,
     created_at DOUBLE PRECISION NOT NULL,
     updated_at DOUBLE PRECISION NOT NULL
 );
@@ -269,7 +270,8 @@ def init_db():
             print(f"[DB] schema stmt failed: {e}", flush=True)
     # migrations for databases created before a column existed
     for stmt in ("ALTER TABLE orders ADD COLUMN workers INTEGER NOT NULL DEFAULT 0",
-                 "ALTER TABLE orders ADD COLUMN nonce TEXT"):
+                 "ALTER TABLE orders ADD COLUMN nonce TEXT",
+                 "ALTER TABLE orders ADD COLUMN ready_at DOUBLE PRECISION NOT NULL DEFAULT 0"):
         try:
             execute(stmt)
         except Exception:

@@ -1,8 +1,8 @@
 # COINFLOW
 
-Coin-economy growth site: watch sponsored ads → earn coins → spend coins on real
-TikTok / Instagram engagement delivered by an in-house Playwright worker pool
-(Zefoy for TikTok, Zefame for Instagram).
+Free growth site: send an order → a **zefoy-style wait timer** runs (ads play
+while you wait) → the order dispatches to an in-house Playwright worker pool
+(Zefoy for TikTok, Zefame for Instagram). No coins, no prices — just timers.
 
 The Zefoy DOM selectors and submit/cooldown flow were ported from the reference
 project, then the captcha solver, the page-load path and the session handling
@@ -77,22 +77,17 @@ docker build -t coinflow . && docker run -p 8080:8080 --env-file .env coinflow
   and a fresh challenge is forced **every hour** on the site — the modal cannot
   be dismissed while it is mandatory.
 
-## Get Coins — ad flow
+## Wait-room ads
 
 The page loads the configured Adsterra social bar before `</head>`. The old
 random popunder was dropped (ads firing at random moments); instead every ad
-slot in the rewarded flow shows an **"Open sponsor" button carrying an
-Adsterra SmartLink** — the five links in `ADSTERRA_SMARTLINKS` rotate one per
-ad — and the slot's countdown only starts once the sponsor is actually
-opened. The rewarded flow remains server-validated; provider scripts do not
-receive or contain account credentials.
-
-
-| Pack | Ads | Reward |
-|---|---|---|
-| `ads1` | 1 | 5 coins |
-| `ads5` | 5 back to back | 30 coins |
-| `ads10` | 10 back to back | 65 coins |
+slot shows an **"Open sponsor" button carrying an Adsterra SmartLink** — the
+five links in `ADSTERRA_SMARTLINKS` rotate one per ad — and the slot's
+countdown only starts once the sponsor is actually opened. Ads now run inside
+the **wait timer**: after an order is sent, slots keep coming (one after
+another) until the order's timer hits zero and it dispatches. The flow stays
+server-validated; provider scripts do not receive or contain account
+credentials.
 
 Anti-bypass, all server-side:
 
@@ -102,29 +97,34 @@ Anti-bypass, all server-side:
 * replayed / out-of-order heartbeats and early `complete` calls are rejected,
 * **ad-block detection is server-observed**: each slot ships a probe URL
   (`/pagead/js/adsbygoogle-<id>.js`) that every filter list blocks. If the server
-  never sees that request, no coins. A DOM bait element and a fetch probe run
+  never sees that request, no ad credit. A DOM bait element and a fetch probe run
   client side too,
 * any violation raises a suspicion counter → the user is dropped straight into a
-  mandatory captcha challenge; three strikes void the run,
-* multi-ad packs only pay out after the **last** ad completes.
+  mandatory captcha challenge; three strikes void the run.
 
 ## Rewards
 
-Pick platform → service → **choose how many** → pay → paste link. Every
-service has a base price and the buyer picks any amount inside its min/max
-(step-quantised); the coin cost scales linearly and is **always recomputed
-server side** (`orders.price_for`), so a tampered client can never underpay.
+Pick platform → service → **choose how many** → paste link → Send. Ordering is
+**free**; every service then runs its own wait timer before dispatch, exactly
+like zefoy's cooldown. Amounts are quantised to the service step inside
+min/max and always recomputed server side (`orders.price_for`).
 
-| Platform | Service | Base price | Choosable range | Engine |
+| Platform | Service | Wait timer | Choosable range | Engine |
 |---|---|---|---|---|
-| TikTok | Likes | 10 coins / 25 | 25 – 1000 (step 25) | Zefoy |
-| TikTok | Views | 5 coins / 1000 | 500 – 10000 (step 500) | Zefoy |
-| TikTok | Favorites | 10 coins / 100 | 50 – 1000 (step 50) | Zefoy |
-| TikTok | Shares | 8 coins / 50 | 10 – 500 (step 10) | Zefoy |
-| Instagram | Views | 5 coins / 300 | 300 – 3000 (step 100) | Zefame |
+| TikTok | Likes | 2 min | 25 – 1000 (step 25) | Zefoy |
+| TikTok | Views | 3 min | 500 – 10000 (step 500) | Zefoy |
+| TikTok | Favorites | 5 min | 50 – 1000 (step 50) | Zefoy |
+| TikTok | Shares | 5 min | 10 – 500 (step 10) | Zefoy |
+| Instagram | Views | 7 min | 300 – 3000 (step 100) | Zefame |
 | X, Telegram | — | — | "Soon will update" | |
 
-The order form shows the live coin price for the chosen amount, and for
+Timers live in `config.SERVICE_WAIT` and are env-overridable via
+`SERVICE_WAIT_JSON` (e.g. `{"favorites": 600}`). While the timer runs the
+orders list shows `TIMER — dispatches in mm:ss` and the wait room keeps
+serving ads; the worker pool only claims orders whose `ready_at` has passed
+(`engine.claim_order`).
+
+The order form shows the amount and timer, and for
 Instagram views also the delivery estimate: Zefame delivers ~300 views per
 batch and only allows a new batch once per 5.3-minute cycle, so **1000 views
 = 4 batches ≈ 22 minutes** — the worker page sits through each cycle and the
@@ -143,14 +143,12 @@ live cam shows the countdown between batches.
 * **5-minute global link lock**: while an order for a link is live, no other
   account, device or session can order that same link — enforced by a unique row
   in `link_locks`, not by the client.
-* **Order creation is one database transaction**: charge (a conditional
-  `UPDATE ... WHERE coins >= cost`), order insert, demo flag and link lock all
-  commit or roll back together. Two purchases fired at the same instant (two
-  devices, double-click, a replayed request) serialize on the account row — the
-  second one sees the first one's balance and is refused. Buying 1000 views at
-  5 coins from a 15-coin balance always leaves exactly 10.
+* **Order creation is one database transaction**: order insert and link lock
+  commit or roll back together. Two submits fired at the same instant (two
+  devices, double-click, a replayed request) serialize on the account row —
+  the second one sees the first one's order and is refused.
 * **Anti-replay nonce**: every submit carries a unique request id that the
-  server accepts exactly once, so retries can never double-charge.
+  server accepts exactly once, so retries can never double-submit.
 * **One active order per account**: while an order is queued or running, new
   orders are refused until it finishes.
 
@@ -159,18 +157,14 @@ live cam shows the countdown between batches.
 Everything lives in Postgres when `DATABASE_URL` is set (schema is created
 automatically on boot); otherwise a local SQLite file under `data/` is used for
 dev. Tables cover accounts (with hashed login keys), sessions, orders (queued /
-running / done / partial / failed, each with cost, baseline→target and live
-progress), link locks, ad runs, captchas, promo codes and stats. The Admin tab
+running / done / partial / failed, each with ready_at, baseline→target and
+live progress), link locks, ad runs, captchas and stats. The Admin tab
 shows running vs. completed order counts and which backend is live.
 * **Parallel fan-out**: likes orders are worked by **up to 4 worker pages at the
   same time** (favorites/shares 2, views 1) so they land much faster. Pages join
   a running order as slots free up, share the counter cache so the metric API is
   not hammered, and the moment any page reaches the target the rest see the
   order is no longer live and drop it.
-* Every account gets **one free demo delivery** (no ads, no coins) — it covers
-  the first order up to the service's base amount (e.g. 100 favorites).
-  Selecting more than the base turns it into a normal paid order, so a
-  5-coin balance can never walk off with a 100-coin order.
 * Instagram orders open <https://zefame.com/en/free-instagram-views>, fill the
   link field and click *Get Now*. Zefame then runs its own ~1 minute counter, so
   each batch waits **105 s** for it to finish and holds a further **20 s**.
@@ -186,10 +180,7 @@ shows running vs. completed order counts and which backend is live.
 Type the admin code into the **promo field** in Rewards — nothing on the site
 mentions it. The Admin tab then appears with:
 
-* accounts total / created, coins used globally, coins earned, ads watched,
-  orders completed,
-* promo-code generator (coins + number of uses + optional custom code) and the
-  list of live codes,
+* accounts total / created, ads watched, orders completed,
 * **live cams**: a JPEG feed per worker page (4 browsers × 3 pages) refreshed
   every second, plus the Zefoy service-monitor feed with its 5-second screenshot,
 * engine log tail and the latest orders.
@@ -227,7 +218,7 @@ start.py               entrypoint (+ optional Tor bootstrap)
 core/config.py         env-driven configuration
 core/db.py             Postgres/SQLite layer + schema
 core/security.py       HMAC tickets, key generation, rate limiting
-core/accounts.py       key-only auth, sessions, coin ledger
+core/accounts.py       key-only auth, sessions, captcha gating
 core/captcha.py        photo drag-and-drop captcha (build + verify)
 core/ads.py            ad-run state machine and anti-bypass rules
 core/solver.py         fast Zefoy word-captcha solver

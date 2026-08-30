@@ -359,9 +359,10 @@ def claim_order(engine_kind):
                 db.execute("UPDATE orders SET workers = CASE WHEN workers > 0 THEN workers - 1"
                            " ELSE 0 END WHERE id = ?", (o["id"],))
 
-        # 2. otherwise start the oldest queued order
+        # 2. otherwise start the oldest queued order whose wait timer expired
         rows = db.query("SELECT * FROM orders WHERE status = 'queued' AND platform = ?"
-                        " ORDER BY id ASC LIMIT 1", (platform,))
+                        " AND ready_at <= ? ORDER BY id ASC LIMIT 1",
+                        (platform, time.time()))
         if not rows:
             return None
         order = rows[0]

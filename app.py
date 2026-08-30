@@ -131,11 +131,7 @@ def api_me():
     if not acct:
         return jsonify({"account": None, "site": config.SITE_NAME})
     accounts.touch(acct["id"])
-    pub = accounts.public_account(acct, sess)
-    # demo is per device: a second account on this IP gets no free try
-    pub["demo_available"] = bool(pub["demo_available"]) and \
-        not orders.ip_demo_used(security.client_ip(request))
-    return jsonify({"account": pub})
+    return jsonify({"account": accounts.public_account(acct, sess)})
 
 
 # ------------------------------------------------------------------ captcha
@@ -182,12 +178,10 @@ def api_ads_state():
         return err
     run = ads.get_open(acct["id"])
     return jsonify({
-        "packs": [{"id": k, **v} for k, v in config.COIN_PACKS.items()],
         "run": None if not run else {
-            "id": run["id"], "pack": run["pack"], "required": run["required"],
-            "done": run["done"], "coins": run["coins"], "state": run["state"],
+            "id": run["id"], "required": run["required"],
+            "done": run["done"], "state": run["state"],
         },
-        "coins": int(acct["coins"]),
     })
 
 
@@ -196,14 +190,15 @@ def api_ads_start():
     sess, acct, err = need_verified()
     if err:
         return err
-    pack = (request.json or {}).get("pack")
+    # one open-ended session fills the wait timer with ads; the client ends it
+    # when the order dispatches.
     if not security.limiter.hit(f"adstart:{acct['id']}", 30, 3600):
         return jsonify({"error": "rate-limited"}), 429
-    run, e = ads.open_session(acct["id"], pack)
+    run, e = ads.open_session(acct["id"])
     if e:
         return jsonify({"error": e}), 400
     return jsonify({"run": {"id": run["id"], "required": run["required"], "done": 0,
-                            "coins": run["coins"], "state": run["state"]}})
+                            "state": run["state"]}})
 
 
 @app.post("/api/ads/slot")
@@ -248,7 +243,6 @@ def api_ads_complete():
     body = request.json or {}
     res = ads.complete_slot(run, body.get("ticket"), body.get("bait"),
                             body.get("flags") or {})
-    res["coins"] = int(accounts.get_account(acct["id"])["coins"])
     return jsonify(res)
 
 
@@ -285,8 +279,9 @@ def api_order():
         return jsonify({"error": e}), 400
     return jsonify({"order": {"id": order["id"], "status": order["status"],
                               "baseline": order["baseline"], "target": order["target"],
-                              "amount": order["amount"], "cost": order["cost"]},
-                    "coins": int(accounts.get_account(acct["id"])["coins"])})
+                              "amount": order["amount"],
+                              "ready_at": order["ready_at"],
+                              "wait": int(order["ready_at"] - time.time())}})
 
 
 @app.get("/api/orders")
@@ -311,20 +306,7 @@ def api_promo():
     if secrets.compare_digest(code, config.ADMIN_CODE):
         accounts.grant_admin(acct["id"])
         return jsonify({"ok": True, "admin": True, "message": "Access granted."})
-
-    row = db.query_one("SELECT * FROM promo_codes WHERE code = ?", (code,))
-    if not row or int(row["uses_left"]) <= 0:
-        return jsonify({"error": "Invalid or expired code."}), 400
-    used = db.query_one("SELECT 1 AS x FROM promo_uses WHERE code = ? AND account_id = ?",
-                        (code, acct["id"]))
-    if used:
-        return jsonify({"error": "You already used this code."}), 400
-    db.execute("UPDATE promo_codes SET uses_left = uses_left - 1 WHERE code = ?", (code,))
-    db.execute("INSERT INTO promo_uses (code, account_id, used_at) VALUES (?, ?, ?)",
-               (code, acct["id"], time.time()))
-    accounts.add_coins(acct["id"], int(row["coins"]))
-    return jsonify({"ok": True, "coins_added": int(row["coins"]),
-                    "coins": int(accounts.get_account(acct["id"])["coins"])})
+    return jsonify({"error": "Invalid code."}), 400
 
 
 # ------------------------------------------------------------------ admin
@@ -346,38 +328,15 @@ def api_admin_stats():
     return jsonify({
         "accounts_total": int(total_accounts),
         "accounts_created": stats.get("accounts_created", 0),
-        "coins_spent": stats.get("coins_spent", 0),
-        "coins_earned": stats.get("coins_earned", 0),
         "ads_watched": stats.get("ads_watched", 0),
         "orders_done": stats.get("orders_done", 0),
         "orders_running": int(active_orders),
         "orders_completed": int(completed_orders),
         "database": "postgres" if db.IS_PG else "sqlite",
         "orders": live_orders,
-        "codes": codes,
         "monitor": engine.service_status(),
         "logs": list(engine.LOGS)[-80:],
     })
-
-
-@app.post("/api/admin/promo")
-def api_admin_promo():
-    sess, acct, err = need_admin()
-    if err:
-        return err
-    body = request.json or {}
-    try:
-        coins = max(1, min(100000, int(body.get("coins", 10))))
-        uses = max(1, min(10000, int(body.get("uses", 1))))
-    except Exception:
-        return jsonify({"error": "bad-values"}), 400
-    code = (body.get("code") or "").strip().upper() or ("CF" + secrets.token_hex(4).upper())
-    try:
-        db.execute("INSERT INTO promo_codes (code, coins, uses_left, created_at)"
-                   " VALUES (?, ?, ?, ?)", (code, coins, uses, time.time()))
-    except Exception:
-        return jsonify({"error": "code-exists"}), 400
-    return jsonify({"code": code, "coins": coins, "uses": uses})
 
 
 @app.get("/api/admin/cams")

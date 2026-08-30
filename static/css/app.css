@@ -271,3 +271,8 @@ textarea{width:100%;resize:vertical;font-family:ui-monospace,monospace;font-size
 
 .cap-tray .row{gap:8px;flex-wrap:nowrap}
 .cap-tray span{flex:1;min-width:180px}
+
+/* wait-timer stage (zefoy-style countdown while ads play) */
+.wait-stage{margin-top:16px;border-color:#3a3a40}
+.wait-stage h3{margin:0 0 6px;font-size:18px}
+.wait-stage .sub{margin:0}

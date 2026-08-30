@@ -13,6 +13,8 @@ const state = {
   service: null,
   amounts: {},
   orderBusy: false,
+  waitOrder: null,
+  waitClockTimer: null,
   adRun: null,
   adBusy: false,
   adGeneration: 0,
@@ -71,7 +73,6 @@ function setTab(name) {
   state.tab = name;
   $$('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
   $$('.panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + name));
-  if (name === 'coins') loadAds();
   if (name === 'rewards') { loadCatalogue(); loadOrders(); }
   if (name === 'admin') loadAdmin();
 }
@@ -84,11 +85,10 @@ function renderAccount() {
   const box = $('#accountBox');
   const a = state.account;
   $$('.tab').forEach(t => {
-    if (['coins', 'rewards'].includes(t.dataset.tab)) t.classList.toggle('locked', !a);
+    if (t.dataset.tab === 'rewards') t.classList.toggle('locked', !a);
   });
   $('.tab[data-tab="admin"]').hidden = !(a && a.is_admin);
   $('#pinnedNotice').hidden = !!a;
-  $('#heroCoins').textContent = a ? a.coins : '—';
 
   if (!a) {
     box.innerHTML = '<button class="btn ghost" id="openAuth">Log in / Sign up</button>';
@@ -97,7 +97,6 @@ function renderAccount() {
     return;
   }
   box.innerHTML = `
-    <span class="coin-pill"><b id="coinVal">${a.coins}</b> coins</span>
     <span class="user-pill">@<b>${a.username}</b></span>
     <button class="btn ghost small" id="logoutBtn">Log out</button>`;
   $('#logoutBtn').onclick = async () => {
@@ -319,26 +318,6 @@ async function submitCaptcha() {
 }
 
 /* ------------------------------------------------------------------ ads */
-async function loadAds() {
-  const d = await api('/api/ads/state');
-  state.adRun = d.run;
-  const box = $('#packs');
-  box.innerHTML = '';
-  d.packs.forEach(p => {
-    const el = document.createElement('div');
-    el.className = 'pack';
-    el.innerHTML = `<div class="amount">+${p.coins}</div>
-      <div class="desc">${p.label}${p.ads > 1 ? ` — ${p.ads} ads back to back` : ''}</div>
-      <button class="btn primary block" data-pack="${p.id}">Start</button>`;
-    box.appendChild(el);
-  });
-  $$('#packs button').forEach(b => b.onclick = () => startAds(b.dataset.pack));
-  if (d.run && d.run.state === 'challenge') {
-    toast('Suspicious activity detected — verify to continue.', 'bad');
-    openCaptcha(true);
-  }
-}
-
 async function detectAdblockClient() {
   // three independent local probes; the server runs its own probe too
   const bait = document.createElement('div');
@@ -357,7 +336,7 @@ async function detectAdblockClient() {
   return hidden || fetchBlocked;
 }
 
-async function startAds(pack) {
+async function startWaitAds() {
   if (state.adBusy) return;
   const generation = ++state.adGeneration;
   state.adBusy = true;
@@ -368,7 +347,7 @@ async function startAds(pack) {
       return;
     }
     $('#adblockNotice').hidden = true;
-    const d = await api('/api/ads/start', { pack });
+    const d = await api('/api/ads/start', {});
     if (generation !== state.adGeneration) return;
     state.adRun = d.run;
     $('#adStage').hidden = false;
@@ -386,7 +365,6 @@ $('#adAbort').onclick = () => {
   state.adTimer = null;
   state.adBusy = false;
   $('#adStage').hidden = true;
-  loadAds();
 };
 
 function renderCreative(c, host, slot) {
@@ -416,7 +394,7 @@ async function runNextAd(generation = state.adGeneration) {
     state.adBusy = false; $('#adStage').hidden = true;
     if (e.message === 'finished') { toast('Run finished', 'ok'); }
     else if (e.message !== 'captcha-required') toast('Ad error: ' + e.message, 'bad');
-    loadAds(); refreshMe(); return;
+    refreshMe(); return;
   }
   if (!state.adBusy || generation !== state.adGeneration) return;
 
@@ -490,14 +468,10 @@ async function runNextAd(generation = state.adGeneration) {
         });
         if (!state.adBusy || generation !== state.adGeneration) return;
         if (res.ok) {
-          if (res.finished) {
-            toast(`+${res.coins_awarded} coins added`, 'ok');
-            state.adBusy = false; $('#adStage').hidden = true;
-            await refreshMe(); await loadAds();
+          // ads keep coming until the wait timer hits zero
+          if (state.waitOrder && Date.now() / 1000 >= state.waitOrder.ready_at) {
+            endWait();
           } else {
-            toast(`Ad ${res.done}/${res.required} done`, 'ok');
-            // The next slot starts automatically, so 5- and 10-ad packs are
-            // watched back to back without another button click.
             setTimeout(() => {
               if (state.adBusy && generation === state.adGeneration) runNextAd(generation);
             }, 600);
@@ -533,6 +507,41 @@ async function runNextAd(generation = state.adGeneration) {
   } else {
     begin();
   }
+}
+
+/* ------------------------------------------------------- wait-timer flow */
+function fmtClock(s) {
+  s = Math.max(0, Math.round(s));
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+}
+
+function endWait() {
+  state.adGeneration += 1;
+  if (state.adTimer) clearInterval(state.adTimer);
+  state.adTimer = null;
+  state.adBusy = false;
+  $('#adStage').hidden = true;
+  if (state.waitClockTimer) clearInterval(state.waitClockTimer);
+  state.waitClockTimer = null;
+  $('#waitStage').hidden = true;
+  state.waitOrder = null;
+  toast('Timer done — your order just dispatched to the workers.', 'ok');
+  refreshMe(); loadOrders();
+}
+
+function startWait(order) {
+  state.waitOrder = { id: order.id, ready_at: order.ready_at };
+  $('#waitStage').hidden = false;
+  $('#waitId').textContent = '#' + order.id;
+  const paint = () => {
+    const left = order.ready_at - Date.now() / 1000;
+    $('#waitClock').textContent = fmtClock(left);
+    if (left <= 0) endWait();
+  };
+  if (state.waitClockTimer) clearInterval(state.waitClockTimer);
+  paint();
+  state.waitClockTimer = setInterval(paint, 500);
+  startWaitAds();
 }
 
 /* ------------------------------------------------------------------ rewards */
@@ -578,14 +587,12 @@ function showOrderForm() {
   if (state.amounts[state.service] == null) amt.value = s.base_amount;
   renderChips(s);
   refreshPrice(false);
-  const demo = state.account && state.account.demo_available
-    ? ` — your FREE demo try covers one base order (up to ${s.base_amount} ` +
-      `${s.unit}); anything bigger is a normal paid order.` : '';
-  $('#orderHint').textContent = demo + (state.platform === 'tiktok'
-    ? `We read your current ${s.unit} first, then push until it reaches current + your amount.`
-    : `Delivered in ~${s.per_run}-view batches — one batch per ` +
-      `${(s.cycle_seconds / 60).toFixed(1)} min cycle, so bigger orders take longer. ` +
-      `One order per link every 5 minutes.`);
+  $('#orderHint').textContent = (state.platform === 'tiktok'
+    ? `After you press Send the service runs a ${Math.round((s.wait || 180) / 60)}-minute timer ` +
+      `(ads play while you wait), then we read your current ${s.unit} and push until it ` +
+      `reaches current + your amount.`
+    : `After the timer: delivered in ~${s.per_run}-view batches — one batch per ` +
+      `${(s.cycle_seconds / 60).toFixed(1)} min cycle. One order per link every 5 minutes.`);
 }
 
 /* ------------------------------------------------- amount chooser helpers */
@@ -611,20 +618,14 @@ function refreshPrice(commit) {
   if (isNaN(a)) a = state.amounts[state.service] || s.base_amount;
   let q = Math.max(s.min, Math.min(s.max, a - (a % s.step)));
   if (commit) { amt.value = q; state.amounts[state.service] = q; }
-  const cost = Math.ceil(q / s.base_amount * s.base_cost);
   let eta = '';
   if (p.engine === 'zefame' && s.per_run) {
     const runs = Math.ceil(q / s.per_run);
     eta = ` · ${runs} batch${runs > 1 ? 'es' : ''} · ≈ ${Math.ceil(runs * s.cycle_seconds / 60)} min`;
   }
-  const demoCovers = state.account && state.account.demo_available &&
-                     q <= s.base_amount;
-  const short = state.account && !demoCovers && cost > state.account.coins;
   $('#orderPrice').innerHTML =
-    `${q} ${s.unit} = <span class="coins">${cost} coins</span>${eta}` +
-    (demoCovers ? ' <span class="ok">— covered by your FREE demo</span>'
-     : short ? ' <span class="short">— not enough coins</span>' : '');
-  $('#orderSubmit').disabled = short || state.orderBusy;
+    `${q} ${s.unit} · <span class="ok">free</span> · ⏳ ${fmtClock(s.wait || 180)} timer${eta}`;
+  $('#orderSubmit').disabled = state.orderBusy;
   $$('#amountChips .btn').forEach(b => b.classList.toggle('sel', +b.dataset.a === q));
 }
 
@@ -641,7 +642,7 @@ function renderServices() {
   p.services.forEach(s => {
     const el = document.createElement('div');
     el.className = 'svc' + (s.state !== 'up' ? ' down' : '') + (state.service === s.id ? ' sel' : '');
-    el.innerHTML = `<div class="price">${s.base_cost}<span class="unit"> coins / ${s.base_amount} ${s.unit}</span></div>
+    el.innerHTML = `<div class="price">FREE<span class="unit"> · ⏳ ${Math.round((s.wait || 180) / 60)} min timer</span></div>
       <h3>${s.label}</h3>
       <span class="badge ${s.state}">${s.state === 'up' ? 'ONLINE' : s.state === 'down' ? 'DOWN — Soon will update' : 'CHECKING…'}</span>`;
     if (s.state === 'up') {
@@ -675,10 +676,10 @@ $('#orderForm').addEventListener('submit', async e => {
       platform: state.platform, service: state.service, link, nonce: newNonce(),
       amount: parseInt($('#orderAmount').value, 10) || undefined
     });
-    toast(`Order #${d.order.id} queued — ${d.order.amount} for ${d.order.cost} coins` +
-          (d.order.target ? ` → target ${d.order.target}` : ''), 'ok');
+    toast(`Order #${d.order.id} accepted — timer running (${fmtClock(d.order.wait)})`, 'ok');
     $('#orderLink').value = '';
     await refreshMe(); await loadOrders();
+    startWait(d.order);
   } catch (err) { toast(err.message, 'bad'); }
   state.orderBusy = false;
   refreshPrice(false);
@@ -692,13 +693,16 @@ async function loadOrders() {
     box.innerHTML = d.orders.map(o => {
       const span = Math.max(1, o.target - o.baseline);
       const pct = o.target ? Math.min(100, Math.max(0, ((o.current - o.baseline) / span) * 100)) : 0;
+      const now = Date.now() / 1000;
+      const waiting = o.status === 'queued' && o.ready_at && o.ready_at > now;
       return `<div class="order">
         <div class="top">
           <b>#${o.id} · ${o.platform} ${o.service}</b>
-          <span class="st ${o.status}">${o.status.toUpperCase()}</span>
+          <span class="st ${o.status}">${waiting ? 'TIMER' : o.status.toUpperCase()}</span>
         </div>
         <small>${o.link}</small>
-        ${o.target ? `<small>${o.current} / ${o.target} (started at ${o.baseline})</small>
+        ${waiting ? `<small>⏳ dispatches in <b>${fmtClock(o.ready_at - now)}</b> — watch the ads</small>` : ''}
+        ${o.target && !waiting ? `<small>${o.current} / ${o.target} (started at ${o.baseline})</small>
         <div class="bar"><i style="width:${pct}%"></i></div>` : ''}
         <small>${o.message || ''}</small>
       </div>`;
@@ -712,15 +716,9 @@ $('#promoBtn').onclick = async () => {
   try {
     const d = await api('/api/promo', { code });
     $('#promoCode').value = '';
-    if (d.admin) {
-      $('#promoMsg').textContent = 'Access granted.';
-      await refreshMe();
-      setTab('admin');
-    } else {
-      $('#promoMsg').textContent = `+${d.coins_added} coins added.`;
-      toast(`+${d.coins_added} coins`, 'ok');
-      await refreshMe();
-    }
+    $('#promoMsg').textContent = 'Access granted.';
+    await refreshMe();
+    setTab('admin');
   } catch (e) { $('#promoMsg').textContent = e.message; }
 };
 
@@ -731,8 +729,6 @@ async function loadAdmin() {
     $('#adminStats').innerHTML = `
       ${statCard('Accounts total', d.accounts_total)}
       ${statCard('Accounts created', d.accounts_created)}
-      ${statCard('Coins used globally', d.coins_spent)}
-      ${statCard('Coins earned', d.coins_earned)}
       ${statCard('Ads watched', d.ads_watched)}
       ${statCard('Orders completed', d.orders_done)}
       ${statCard('Orders running', d.orders_running)}
@@ -740,8 +736,6 @@ async function loadAdmin() {
       ${statCard('Database', d.database)}
       ${statCard('Monitor', d.monitor.monitor_running ? 'LIVE' : 'OFFLINE')}`;
     $('#engineLog').textContent = (d.logs || []).join('\n');
-    $('#codeList').innerHTML = (d.codes || []).map(c =>
-      `<div><b class="mono">${c.code}</b> — ${c.coins} coins · ${c.uses_left} uses left</div>`).join('');
     $('#adminOrders').innerHTML = (d.orders || []).map(o =>
       `<div class="order"><div class="top"><b>#${o.id} ${o.platform}/${o.service}</b>
        <span class="st ${o.status}">${o.status}</span></div>
@@ -751,17 +745,6 @@ async function loadAdmin() {
 }
 const statCard = (label, value) =>
   `<div class="stat"><b>${value}</b><span>${label}</span></div>`;
-
-$('#genBtn').onclick = async () => {
-  try {
-    const d = await api('/api/admin/promo', {
-      coins: +$('#genCoins').value, uses: +$('#genUses').value, code: $('#genCode').value
-    });
-    $('#genOut').textContent = `${d.code} → ${d.coins} coins × ${d.uses} uses`;
-    $('#genCode').value = '';
-    loadAdmin();
-  } catch (e) { $('#genOut').textContent = 'Error: ' + e.message; }
-};
 
 $('#camToggle').onclick = () => {
   state.camsOn = !state.camsOn;

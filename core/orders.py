@@ -42,23 +42,9 @@ def price_for(svc, amount):
     return amount, cost
 
 
-def ip_demo_used(ip):
-    """The free demo is per DEVICE (approximated by client IP), not per
-    account: making a second account on the same device must not grant a
-    second free order."""
-    if not ip:
-        return False
-    return bool(db.query_one("SELECT 1 AS x FROM demo_ips WHERE ip = ?", (ip,)))
-
-
-def demo_available(account, ip=""):
-    return not bool(account["demo_used"]) and not ip_demo_used(ip)
-
-
-def ig_eta_seconds(amount):
-    """Instagram views run in ~300-view batches, one batch per 5.3 min cycle."""
-    runs = max(1, math.ceil(int(amount) / config.ZEFAME_VIEWS_PER_RUN))
-    return runs * config.ZEFAME_CYCLE_SECONDS
+def wait_for(service_id):
+    """Zefoy-style countdown (seconds) a service runs before dispatch."""
+    return int(config.SERVICE_WAIT.get(service_id, 180))
 
 
 def catalogue():
@@ -73,10 +59,11 @@ def catalogue():
             else:
                 state = "up"
             entry = {
-                "id": sid, "label": svc["label"], "cost": svc["base_cost"],
-                "amount": svc["base_amount"], "unit": svc["unit"], "state": state,
-                "base_amount": svc["base_amount"], "base_cost": svc["base_cost"],
+                "id": sid, "label": svc["label"], "amount": svc["base_amount"],
+                "unit": svc["unit"], "state": state,
+                "base_amount": svc["base_amount"],
                 "min": svc["min"], "max": svc["max"], "step": svc["step"],
+                "wait": wait_for(sid),
             }
             if plat["engine"] == "zefame":
                 entry["per_run"] = config.ZEFAME_VIEWS_PER_RUN
@@ -93,27 +80,23 @@ def catalogue():
 
 
 def create_order(account, platform, service_id, link, nonce="", amount=None, ip=""):
-    """Validate -> price -> charge -> enqueue, all in ONE transaction.
+    """Validate -> enqueue behind a zefoy-style wait timer, in ONE transaction.
 
-    Anti-bypass guarantees:
+    Guarantees:
 
-    * **Atomic charge.** The coin deduction is a conditional
-      ``UPDATE ... WHERE coins >= cost`` executed inside the same transaction
-      as the order insert. Two purchases fired at the same instant (two
-      devices, double-click, a replayed request) serialize on the account row:
-      the second one sees the first one's balance and fails cleanly.
+    * **Free but paced.** Ordering costs nothing; the order dispatches to the
+      workers only when its ``ready_at`` (now + the service's wait timer)
+      passes.  Ads fill the countdown on the client.
     * **Replay-proof.** Each submit carries a unique request id; a nonce can
-      only ever create one order, so retries never double-charge.
-    * **One active order per account.** While an order is queued or running,
-      new orders are refused, which makes the "buy on two devices at once"
-      attack impossible even with different links.
+      only ever create one order, so retries never double-submit.
+    * **One active order per account.** While an order is queued (timer
+      running) or running, new orders are refused — exactly like zefoy, where
+      the timer blocks the next submit.
     * **Link lock + everything else** live in the same transaction, so any
-      conflict rolls the charge back with it.
+      conflict rolls the whole insert back.
 
     Returns (order, error).
     """
-    from . import accounts
-
     plat = config.REWARDS.get(platform)
     if not plat or not plat["services"]:
         return None, "This platform is not available yet — Soon will update."
@@ -137,7 +120,7 @@ def create_order(account, platform, service_id, link, nonce="", amount=None, ip=
         if not counters.valid_instagram_link(link):
             return None, "That does not look like an Instagram link."
 
-    qty, cost = price_for(svc, amount if amount is not None else svc["base_amount"])
+    qty, _ = price_for(svc, amount if amount is not None else svc["base_amount"])
 
     baseline, target = 0, 0
     metric_key = svc.get("zefoy_key")
@@ -185,30 +168,10 @@ def create_order(account, platform, service_id, link, nonce="", amount=None, ip=
                                  f"{int(float(locked['locked_until']) - time.time())}s "
                                  f"(one order per link every 5 minutes).")
 
-            # 5) free demo once per device, otherwise charge — the spend is
-            #    conditional and part of this transaction, so it can never
-            #    overdraw.  The demo is keyed to the client IP as well as the
-            #    account, so a second account on the same device pays, and it
-            #    only covers a BASE-size order — selecting more than the base
-            #    amount is a normal paid purchase that needs the coins.
-            charged = cost
-            ip_seen = None
-            if ip:
-                ip_seen = cur.execute(db._q("SELECT 1 AS x FROM demo_ips WHERE ip = ?"),
-                                      (ip,)).fetchone()
-            demo_eligible = not bool(fresh["demo_used"]) and not ip_seen
-            if demo_eligible and qty <= int(svc["base_amount"]):
-                charged = 0
-                cur.execute(db._q("UPDATE accounts SET demo_used = ? WHERE id = ?"),
-                            (True if db.IS_PG else 1, account["id"]))
-                if ip:
-                    try:
-                        cur.execute(db._q("INSERT INTO demo_ips (ip, account_id, used_at)"
-                                          " VALUES (?, ?, ?)"), (ip, account["id"], now))
-                    except Exception:
-                        pass
-            elif not accounts.try_spend_on(cur, account["id"], charged):
-                raise OrderError("Not enough coins.")
+            # 5) zefoy-style wait timer: the order sits queued until ready_at
+            #    (ads fill the countdown client-side), then the workers pick
+            #    it up.
+            ready_at = now + wait_for(service_id)
 
             # 6) insert the order, then take the link lock; either conflict
             #    rolls the whole transaction back (charge included)
@@ -216,11 +179,11 @@ def create_order(account, platform, service_id, link, nonce="", amount=None, ip=
                 row = cur.execute(db._q(
                     "INSERT INTO orders (account_id, platform, service, link, link_key,"
                     " cost, amount, baseline, target, current, status, message, nonce,"
-                    " created_at, updated_at)"
-                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?)"
+                    " ready_at, created_at, updated_at)"
+                    " VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?)"
                     " RETURNING id"),
-                    (account["id"], platform, metric_key or service_id, link, key, charged,
-                     qty, baseline, target, baseline, "", nonce, now, now)).fetchone()
+                    (account["id"], platform, metric_key or service_id, link, key,
+                     qty, baseline, target, baseline, "", nonce, ready_at, now, now)).fetchone()
                 order_id = row["id"]
             except Exception:
                 raise OrderError("This order was already submitted — check your orders list.")
@@ -234,8 +197,6 @@ def create_order(account, platform, service_id, link, nonce="", amount=None, ip=
     except OrderError as e:
         return None, str(e)
 
-    if charged:
-        db.bump_stat("coins_spent", charged)
     return db.query_one("SELECT * FROM orders WHERE id = ?", (order_id,)), None
 
 
@@ -248,6 +209,7 @@ def user_orders(account_id, limit=15):
             "id": r["id"], "platform": r["platform"], "service": r["service"],
             "link": r["link"], "status": r["status"], "message": r["message"],
             "baseline": r["baseline"], "target": r["target"], "current": r["current"],
-            "amount": r["amount"], "cost": r["cost"], "created_at": r["created_at"],
+            "amount": r["amount"], "ready_at": r["ready_at"],
+            "created_at": r["created_at"],
         })
     return out

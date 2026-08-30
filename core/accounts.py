@@ -96,39 +96,6 @@ def mark_captcha_progress(token, solved_ok):
     return pending
 
 
-def add_coins(account_id, amount, reason="", spend=False):
-    if amount == 0:
-        return get_account(account_id)
-    if spend:
-        db.execute("UPDATE accounts SET coins = coins - ?, coins_spent = coins_spent + ?"
-                   " WHERE id = ? AND coins >= ?",
-                   (amount, amount, account_id, amount))
-        db.bump_stat("coins_spent", amount)
-    else:
-        db.execute("UPDATE accounts SET coins = coins + ? WHERE id = ?", (amount, account_id))
-        db.bump_stat("coins_earned", amount)
-    return get_account(account_id)
-
-
-def try_spend_on(cur, account_id, amount):
-    """Conditional, atomic spend on an open transaction cursor. Returns True
-    only when the balance actually covered the price; the UPDATE matches zero
-    rows otherwise, so two simultaneous purchases can never double-spend."""
-    cur.execute(db._q("UPDATE accounts SET coins = coins - ?, coins_spent = coins_spent + ?"
-                      " WHERE id = ? AND coins >= ?"),
-                (amount, amount, account_id, amount))
-    return cur.rowcount > 0
-
-
-def try_spend(account_id, amount):
-    """Atomic conditional spend outside a bigger transaction."""
-    with db.cursor() as cur:
-        ok = try_spend_on(cur, account_id, amount)
-    if ok:
-        db.bump_stat("coins_spent", amount)
-    return ok
-
-
 def grant_admin(account_id):
     db.execute("UPDATE accounts SET is_admin = ? WHERE id = ?",
                (True if db.IS_PG else 1, account_id))
@@ -139,11 +106,8 @@ def public_account(acct, sess=None):
         return None
     return {
         "username": acct["username"],
-        "coins": int(acct["coins"]),
         "is_admin": bool(acct["is_admin"]),
         "verified": bool(acct["verified"]),
-        "ads_watched": int(acct["ads_watched"]),
-        "demo_available": not bool(acct["demo_used"]),
         "captcha_due": captcha_due(sess) if sess is not None else False,
         "pending_solves": int(sess.get("pending_solves") or 0) if sess else 0,
     }

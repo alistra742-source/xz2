@@ -52,12 +52,23 @@ ADSTERRA_SMARTLINKS = [
     ).split(",") if u.strip()
 ]
 
-# ---------------------------------------------------------------- economy
-COIN_PACKS = {
-    "ads1": {"ads": 1, "coins": 5, "label": "Watch 1 ad"},
-    "ads5": {"ads": 5, "coins": 30, "label": "Watch 5 ads"},
-    "ads10": {"ads": 10, "coins": 65, "label": "Watch 10 ads"},
+# ---------------------------------------------------------------- timers
+# No coins — ordering is free, but exactly like zefoy each service runs a WAIT
+# TIMER after you submit.  Ads play while it counts down; the order dispatches
+# to the workers the moment it hits zero.  Seconds per service, env override
+# via SERVICE_WAIT_JSON (e.g. {"favorites": 600}).
+SERVICE_WAIT = {
+    "hearts": 120,
+    "views": 180,
+    "favorites": 300,
+    "shares": 300,
+    "ig_views": 420,
 }
+try:
+    import json as _json
+    SERVICE_WAIT.update(_json.loads(os.environ.get("SERVICE_WAIT_JSON", "")))
+except Exception:
+    pass
 AD_MIN_SECONDS = _i("AD_MIN_SECONDS", 15)        # each ad must be watched fully
 AD_HEARTBEAT_SECONDS = 2                          # client ping interval
 AD_MAX_MISSED_BEATS = 2                           # tolerance before suspicion
