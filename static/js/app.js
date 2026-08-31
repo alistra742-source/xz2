@@ -319,33 +319,24 @@ async function submitCaptcha() {
 
 /* ------------------------------------------------------------------ ads tab */
 let adsViewed = 0;
-function showAd() {
-  const display = $('#adsDisplay');
-  const placeholder = $('#adsPlaceholder');
-  if (placeholder) placeholder.remove();
-  // Clear any previous ad
-  display.innerHTML = '';
-  // Create a fresh AdSense unit each click so a new ad loads every time
-  const ins = document.createElement('ins');
-  ins.className = 'adsbygoogle';
-  ins.style.cssText = 'display:block;width:100%;height:320px';
-  ins.setAttribute('data-ad-client', 'ca-pub-7937384871650239');
-  ins.setAttribute('data-ad-slot', '4820193765');
-  ins.setAttribute('data-ad-format', 'auto');
-  ins.setAttribute('data-full-width-responsive', 'true');
-  display.appendChild(ins);
-  // Ensure the AdSense script is loaded
-  if (!window.adsbygoogle) {
-    const s = document.createElement('script');
-    s.async = true;
-    s.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7937384871650239';
-    s.crossOrigin = 'anonymous';
-    document.head.appendChild(s);
-  }
-  try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
-  adsViewed++;
-  $('#adsCounter').textContent = adsViewed === 1 ? '1 ad loaded' : adsViewed + ' ads loaded';
+const _adSmartlinks = [
+  'https://screwbedriddenheadline.com/ggxnb1mm?key=f9862fe342e3c188837c915e20b66334',
+  'https://screwbedriddenheadline.com/ncq9qmr5k5?key=1a118a008303fcd7dd412e69532ebcbc',
+  'https://screwbedriddenheadline.com/py7ycr6i37?key=4d31cab3fe4f7b7eddb6f1e9d3cd5ea9',
+  'https://screwbedriddenheadline.com/t78vnwxx?key=1fdc549af3cd4fc2fcf16143c19d4a9e',
+  'https://screwbedriddenheadline.com/tqbxiqs4k?key=bc091e88730e1c3d36bc96f002787282'
+];
+function refreshSponsorBtn() {
+  const btn = $('#showAdBtn');
+  if (!btn) return;
+  btn.href = _adSmartlinks[adsViewed % _adSmartlinks.length];
 }
+function showAd() {
+  adsViewed++;
+  $('#adsCounter').textContent = adsViewed === 1 ? '1 sponsor opened' : adsViewed + ' sponsors opened';
+  refreshSponsorBtn();
+}
+refreshSponsorBtn();
 $('#showAdBtn').onclick = showAd;
 
 /* ------------------------------------------------------------------ inline ads */

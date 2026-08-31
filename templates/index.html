@@ -97,13 +97,12 @@
 
   <!-- ============================================================ ADS -->
   <section class="panel" id="tab-ads">
-    <h2>Watch Ads</h2>
-    <p class="sub">Click the button below to load a fresh sponsored ad. Works without an account — just watch and enjoy.</p>
+    <h2>Sponsors</h2>
+    <p class="sub">Click the button below to open a sponsor. Works without an account.</p>
     <div class="ads-page">
-      <button class="btn primary ads-play-btn" id="showAdBtn">▶ Show Ad</button>
-      <div class="ads-display" id="adsDisplay">
-        <p class="muted" id="adsPlaceholder">Press the button above to load an ad.</p>
-      </div>
+      <a class="btn primary ads-play-btn" id="showAdBtn" href="#" target="_blank" rel="noopener sponsored">Open sponsor</a>
+      <small id="adsNote" style="color:var(--mut2);font-size:12px">Opens in a new tab — each click loads a fresh sponsor.</small>
+      <div class="ads-display" id="adsDisplay"></div>
       <div class="ads-counter" id="adsCounter"></div>
     </div>
   </section>
@@ -278,7 +277,7 @@
 
 <div class="toasts" id="toasts"></div>
 
-<script src="/static/js/app.js?v=10"></script>
+<script src="/static/js/app.js?v=11"></script>
 <!-- Adsterra popunder placement: keep immediately above the closing body tag. -->
 <script src="{{ adsterra_popunder_src }}"></script>
 </body>
