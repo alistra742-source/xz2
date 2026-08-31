@@ -107,35 +107,19 @@ async function refreshMe(silent = true) {
 }
 
 /* ---------------------------------------------------------- signup / login */
-$('#pinnedCta').onclick = () => openModal('modal-confirm');
-$('#openAuth').onclick = () => openModal('modal-auth');
-$('#createAccountBtn').onclick = () => openModal('modal-confirm');
-
-$('#confirmCreate').onclick = async () => {
+async function createAndLogin() {
   try {
     const d = await api('/api/account/new', {});
-    $('#keyBox').textContent = d.key;
-    $('#keySaved').checked = false;
-    $('#goLogin').disabled = true;
-    openModal('modal-key');
-  } catch (e) { toast('Could not create a key: ' + e.message, 'bad'); }
-};
-$('#keySaved').onchange = e => { $('#goLogin').disabled = !e.target.checked; };
-$('#copyKey').onclick = async () => {
-  const key = $('#keyBox').textContent;
-  try { await navigator.clipboard.writeText(key); toast('Key copied — store it safely!', 'ok'); }
-  catch (e) {
-    const ta = document.createElement('textarea'); ta.value = key; document.body.appendChild(ta);
-    ta.select(); document.execCommand('copy'); ta.remove(); toast('Key copied', 'ok');
-  }
-};
-$('#downloadKey').onclick = () => {
-  const blob = new Blob([$('#keyBox').textContent + '\n\nKeep this file safe. It IS your account.'],
-                        { type: 'text/plain' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = 'coinflow-key.txt'; a.click();
-};
-$('#goLogin').onclick = () => { $('#loginKey').value = $('#keyBox').textContent; openModal('modal-auth'); };
+    const d2 = await api('/api/login', { key: d.key });
+    state.account = d2.account;
+    renderAccount();
+    closeModal();
+    toast(`Account created: @${d2.account.username}`, 'ok');
+  } catch (e) { toast('Could not create account: ' + e.message, 'bad'); }
+}
+$('#pinnedCta').onclick = createAndLogin;
+$('#openAuth').onclick = () => openModal('modal-auth');
+$('#createAccountBtn').onclick = createAndLogin;
 
 $('#loginBtn').onclick = async () => {
   const key = $('#loginKey').value.trim();
@@ -146,7 +130,7 @@ $('#loginBtn').onclick = async () => {
     state.account = d.account;
     renderAccount();
     closeModal();
-    toast(d.created ? `Account created: @${d.account.username}` : `Welcome back, @${d.account.username}`, 'ok');
+    toast(`Welcome back, @${d.account.username}`, 'ok');
   } catch (e) { $('#authErr').textContent = 'Login failed: ' + e.message; }
 };
 

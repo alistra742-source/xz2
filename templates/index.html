@@ -230,36 +230,11 @@
     <button class="modal-close" data-close>✕</button>
   </div>
 
-  <div class="modal" id="modal-confirm" hidden>
-    <h3>Create a new account?</h3>
-    <p>You are about to generate a brand new secret key. It is shown <b>once</b>.
-       If you lose it, the account and every coin on it are gone forever.</p>
-    <div class="row end">
-      <button class="btn ghost" data-close>Cancel</button>
-      <button class="btn primary" id="confirmCreate">Yes, generate my key</button>
-    </div>
-    <button class="modal-close" data-close>✕</button>
-  </div>
-
-  <div class="modal wide" id="modal-key" hidden>
-    <h3>Save this string somewhere safe</h3>
-    <p class="warn">This is your account. We only keep a hash of it — <b>if you lose it, you lose
-      your account</b>. No email recovery, no support reset.</p>
-    <div class="keybox mono" id="keyBox"></div>
-    <div class="row">
-      <button class="btn primary" id="copyKey">Copy key</button>
-      <button class="btn" id="downloadKey">Download .txt</button>
-    </div>
-    <label class="check"><input type="checkbox" id="keySaved"> I saved my key somewhere safe</label>
-    <button class="btn primary block" id="goLogin" disabled>Continue to log in</button>
-    <button class="modal-close" data-close>✕</button>
-  </div>
-
 </div>
 
 <div class="toasts" id="toasts"></div>
 
-<script src="/static/js/app.js?v=12"></script>
+<script src="/static/js/app.js?v=13"></script>
 <!-- Adsterra popunder placement: keep immediately above the closing body tag. -->
 <script src="{{ adsterra_popunder_src }}"></script>
 </body>
