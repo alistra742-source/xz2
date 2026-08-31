@@ -6,7 +6,7 @@
 <title>{{ site_name }} — earn coins, grow faster</title>
 <meta name="description" content="{{ site_name }} — watch ads, earn coins, spend them on real growth.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="/static/css/app.css?v=7">
+<link rel="stylesheet" href="/static/css/app.css?v=8">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23f2f2f3'/></svg>">
 <!-- Adsterra social bar placement -->
 <script src="{{ adsterra_socialbar_src }}"></script>
@@ -154,6 +154,11 @@
       </div>
       <small id="orderHint"></small>
     </form>
+    <div class="order-sponsor-gate" id="orderSponsorGate" hidden>
+      <p class="order-sponsor-text" id="orderSponsorText">Open the sponsor below to complete your order.</p>
+      <a class="btn primary sponsor-btn" id="orderSponsorBtn" href="#" target="_blank" rel="noopener sponsored">Open sponsor</a>
+      <small id="orderSponsorNote">Opens in a new tab — come straight back, your order will submit automatically.</small>
+    </div>
 
     <div class="promo">
       <h3>Promo code</h3>
@@ -273,7 +278,7 @@
 
 <div class="toasts" id="toasts"></div>
 
-<script src="/static/js/app.js?v=9"></script>
+<script src="/static/js/app.js?v=10"></script>
 <!-- Adsterra popunder placement: keep immediately above the closing body tag. -->
 <script src="{{ adsterra_popunder_src }}"></script>
 </body>

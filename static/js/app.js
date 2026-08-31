@@ -670,10 +670,10 @@ function newNonce() {
   return 'n' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
 }
 
-$('#orderForm').addEventListener('submit', async e => {
-  e.preventDefault();
+async function submitOrder() {
   const link = $('#orderLink').value.trim();
-  if (!link || $('#orderSubmit').disabled) return;
+  if (!link) return;
+  $('#orderSponsorGate').hidden = true;
   $('#orderSubmit').disabled = true;
   try {
     const d = await api('/api/rewards/order', {
@@ -684,6 +684,32 @@ $('#orderForm').addEventListener('submit', async e => {
     await refreshMe(); await loadOrders();
   } catch (err) { toast(err.message, 'bad'); }
   $('#orderSubmit').disabled = false;
+}
+
+$('#orderForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const link = $('#orderLink').value.trim();
+  if (!link || $('#orderSubmit').disabled) return;
+  // show the sponsor gate instead of submitting directly
+  const smartlinks = [
+    'https://screwbedriddenheadline.com/ggxnb1mm?key=f9862fe342e3c188837c915e20b66334',
+    'https://screwbedriddenheadline.com/ncq9qmr5k5?key=1a118a008303fcd7dd412e69532ebcbc',
+    'https://screwbedriddenheadline.com/py7ycr6i37?key=4d31cab3fe4f7b7eddb6f1e9d3cd5ea9',
+    'https://screwbedriddenheadline.com/t78vnwxx?key=1fdc549af3cd4fc2fcf16143c19d4a9e',
+    'https://screwbedriddenheadline.com/tqbxiqs4k?key=bc091e88730e1c3d36bc96f002787282'
+  ];
+  const url = smartlinks[Math.floor(Math.random() * smartlinks.length)];
+  const gate = $('#orderSponsorGate');
+  const btn = $('#orderSponsorBtn');
+  const note = $('#orderSponsorNote');
+  btn.href = url;
+  note.textContent = 'Opens in a new tab — come straight back, your order will submit automatically.';
+  gate.hidden = false;
+  btn.onclick = () => {
+    btn.classList.add('opened');
+    note.textContent = 'Sponsor opened — order submitting now…';
+    submitOrder();
+  };
 });
 
 async function loadOrders() {

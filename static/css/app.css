@@ -259,6 +259,9 @@ textarea{width:100%;resize:vertical;font-family:ui-monospace,monospace;font-size
 .sponsor-btn.opened{animation:none;opacity:.7}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,255,255,.3)}50%{box-shadow:0 0 0 8px rgba(255,255,255,0)}}
 #adSponsorNote{display:block;margin-top:6px;color:var(--mut2);font-size:12px}
+.order-sponsor-gate{margin-top:16px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:20px;text-align:center}
+.order-sponsor-text{color:var(--mut);font-size:14px;margin:0 0 14px}
+#orderSponsorNote{display:block;margin-top:8px;color:var(--mut2);font-size:12px}
 
 /* ---------------------------------------------------------- inline ads */
 .ad-slot{width:100%;min-height:90px;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:var(--r);background:transparent}
