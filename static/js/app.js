@@ -72,6 +72,7 @@ function setTab(name) {
   if (name === 'coins') loadAds();
   if (name === 'rewards') { loadCatalogue(); loadOrders(); }
   if (name === 'admin') loadAdmin();
+  renderInlineAds();
 }
 $('#tabs').addEventListener('click', e => {
   const t = e.target.closest('.tab'); if (t) setTab(t.dataset.tab);
@@ -314,6 +315,33 @@ async function submitCaptcha() {
     $('#capMsg').textContent = 'Verification error — loading a new challenge…';
     setTimeout(newCaptcha, 900);
   }
+}
+
+/* ------------------------------------------------------------------ inline ads */
+function renderInlineAds() {
+  if (!window.adsbygoogle) {
+    const s = document.createElement('script');
+    s.async = true;
+    s.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7937384871650239';
+    s.crossOrigin = 'anonymous';
+    document.head.appendChild(s);
+  }
+  document.querySelectorAll('.ad-slot:not(.ad-rendered)').forEach(slot => {
+    const slotId = slot.dataset.adSlot;
+    const fmt = slot.dataset.adFormat || 'auto';
+    if (!slot.querySelector('ins.adsbygoogle')) {
+      const ins = document.createElement('ins');
+      ins.className = 'adsbygoogle';
+      ins.style.cssText = 'display:inline-block;width:100%;height:auto';
+      ins.setAttribute('data-ad-client', 'ca-pub-7937384871650239');
+      ins.setAttribute('data-ad-slot', slotId);
+      ins.setAttribute('data-ad-format', fmt);
+      ins.setAttribute('data-full-width-responsive', 'true');
+      slot.appendChild(ins);
+    }
+    try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
+    slot.classList.add('ad-rendered');
+  });
 }
 
 /* ------------------------------------------------------------------ ads */
@@ -721,5 +749,6 @@ setInterval(() => { if (state.tab === 'rewards') { loadCatalogue(); loadOrders()
 setInterval(() => { if (state.tab === 'admin') loadAdmin(); }, 5000);
 setInterval(() => { if (state.tab === 'admin' && state.camsOn) loadCams(); }, 1000);
 
-refreshMe(false).then(() => { if (state.account) loadCatalogue(); });
+refreshMe(false).then(() => { if (state.account) loadCatalogue(); renderInlineAds(); });
+renderInlineAds();
 })();
