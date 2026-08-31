@@ -446,18 +446,22 @@ $('#adAbort').onclick = () => {
   loadAds();
 };
 
-function renderCreative(c, host) {
+function renderCreative(c, host, slot) {
   host.innerHTML = '';
+  const btn = (slot && slot.smartlink) ? `
+    <a class="btn primary sponsor-btn" id="adSponsor" href="${slot.smartlink}"
+       target="_blank" rel="noopener sponsored">Open sponsor</a>
+    <small id="adSponsorNote">Opens in a new tab — come straight back, the timer keeps running.</small>` : '';
   if (c.type === 'adsterra') {
     host.innerHTML = `<div class="adsterra-slot">
       <span class="sponsor-kicker">SPONSORED</span>
       <h4>Advertisement</h4>
-      <p>The Adsterra placement is active. Keep this tab visible and focused while it runs.</p>
+      <p>Keep this tab visible and focused while it runs.</p>${btn}
     </div>`;
     return;
   }
   host.innerHTML = `<div class="house-ad"><h4>Sponsored content</h4>
-    <p>Keep this tab visible and focused until the timer reaches zero.</p></div>`;
+    <p>Keep this tab visible and focused until the timer reaches zero.</p>${btn}</div>`;
 }
 
 async function runNextAd(generation = state.adGeneration) {
@@ -474,7 +478,7 @@ async function runNextAd(generation = state.adGeneration) {
   if (!state.adBusy || generation !== state.adGeneration) return;
 
   $('#adCounter').textContent = `Ad ${slot.index} of ${slot.total}`;
-  renderCreative(slot.creative, $('#adFrame'));
+  renderCreative(slot.creative, $('#adFrame'), slot);
 
   // Server-observed ad-block probe (the path is intentionally filter-list bait).
   let probeOk = true;
@@ -491,7 +495,10 @@ async function runNextAd(generation = state.adGeneration) {
 
   let remaining = slot.seconds, seq = 0, done = false;
   const total = slot.seconds;
-  const tick = setInterval(async () => {
+  let tick = null;
+  const begin = () => {
+    if (tick) return;
+    tick = setInterval(async () => {
     if (!state.adBusy || generation !== state.adGeneration) {
       clearInterval(tick);
       return;
@@ -566,7 +573,23 @@ async function runNextAd(generation = state.adGeneration) {
       }
     }
   }, 1000);
-  state.adTimer = tick;
+    state.adTimer = tick;
+  };
+  // the smartlink button IS the ad: the countdown only starts once the
+  // sponsor has actually been opened
+  const sponsor = $('#adSponsor');
+  if (slot.smartlink && sponsor) {
+    sponsor.addEventListener('click', () => {
+      sponsor.classList.add('opened');
+      const n = $('#adSponsorNote');
+      if (n) n.textContent = 'Sponsor opened — ad timer running.';
+      begin();
+    });
+    $('#adNote').textContent = 'Press "Open sponsor" — the ad timer starts when you do. ' +
+                               'Keep this tab visible and focused.';
+  } else {
+    begin();
+  }
 }
 
 /* ------------------------------------------------------------------ rewards */
