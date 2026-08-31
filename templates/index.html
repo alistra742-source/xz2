@@ -6,7 +6,7 @@
 <title>{{ site_name }} — earn coins, grow faster</title>
 <meta name="description" content="{{ site_name }} — watch ads, earn coins, spend them on real growth.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="/static/css/app.css?v=5">
+<link rel="stylesheet" href="/static/css/app.css?v=6">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23f2f2f3'/></svg>">
 <!-- Adsterra social bar placement -->
 <script src="{{ adsterra_socialbar_src }}"></script>
@@ -19,6 +19,7 @@
   </div>
   <nav class="tabs" id="tabs">
     <button class="tab active" data-tab="main">Main</button>
+    <button class="tab" data-tab="ads">Ads</button>
     <button class="tab locked" data-tab="coins">Get Coins <i class="lock">🔒</i></button>
     <button class="tab locked" data-tab="rewards">Rewards <i class="lock">🔒</i></button>
     <button class="tab admin-only" data-tab="admin" hidden>Admin</button>
@@ -92,6 +93,19 @@
     </div>
 
     <div class="ad-slot" data-ad-slot="7491026538" data-ad-format="auto" style="margin-top:28px"></div>
+  </section>
+
+  <!-- ============================================================ ADS -->
+  <section class="panel" id="tab-ads">
+    <h2>Watch Ads</h2>
+    <p class="sub">Click the button below to load a fresh sponsored ad. Works without an account — just watch and enjoy.</p>
+    <div class="ads-page">
+      <button class="btn primary ads-play-btn" id="showAdBtn">▶ Show Ad</button>
+      <div class="ads-display" id="adsDisplay">
+        <p class="muted" id="adsPlaceholder">Press the button above to load an ad.</p>
+      </div>
+      <div class="ads-counter" id="adsCounter"></div>
+    </div>
   </section>
 
   <!-- ============================================================ COINS -->
@@ -259,7 +273,7 @@
 
 <div class="toasts" id="toasts"></div>
 
-<script src="/static/js/app.js?v=7"></script>
+<script src="/static/js/app.js?v=8"></script>
 <!-- Adsterra popunder placement: keep immediately above the closing body tag. -->
 <script src="{{ adsterra_popunder_src }}"></script>
 </body>

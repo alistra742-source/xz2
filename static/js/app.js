@@ -64,7 +64,7 @@ $('#modalRoot').addEventListener('click', e => {
 
 /* ------------------------------------------------------------------ tabs */
 function setTab(name) {
-  if (!state.account && name !== 'main') { openModal('modal-auth'); return; }
+  if (!state.account && !['main', 'ads'].includes(name)) { openModal('modal-auth'); return; }
   if (name === 'admin' && !(state.account && state.account.is_admin)) return;
   state.tab = name;
   $$('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
@@ -316,6 +316,37 @@ async function submitCaptcha() {
     setTimeout(newCaptcha, 900);
   }
 }
+
+/* ------------------------------------------------------------------ ads tab */
+let adsViewed = 0;
+function showAd() {
+  const display = $('#adsDisplay');
+  const placeholder = $('#adsPlaceholder');
+  if (placeholder) placeholder.remove();
+  // Clear any previous ad
+  display.innerHTML = '';
+  // Create a fresh AdSense unit each click so a new ad loads every time
+  const ins = document.createElement('ins');
+  ins.className = 'adsbygoogle';
+  ins.style.cssText = 'display:block;width:100%;height:320px';
+  ins.setAttribute('data-ad-client', 'ca-pub-7937384871650239');
+  ins.setAttribute('data-ad-slot', '4820193765');
+  ins.setAttribute('data-ad-format', 'auto');
+  ins.setAttribute('data-full-width-responsive', 'true');
+  display.appendChild(ins);
+  // Ensure the AdSense script is loaded
+  if (!window.adsbygoogle) {
+    const s = document.createElement('script');
+    s.async = true;
+    s.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7937384871650239';
+    s.crossOrigin = 'anonymous';
+    document.head.appendChild(s);
+  }
+  try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
+  adsViewed++;
+  $('#adsCounter').textContent = adsViewed === 1 ? '1 ad loaded' : adsViewed + ' ads loaded';
+}
+$('#showAdBtn').onclick = showAd;
 
 /* ------------------------------------------------------------------ inline ads */
 function renderInlineAds() {
