@@ -66,13 +66,8 @@ def logout(token):
 
 
 def captcha_due(sess):
-    """True when this session must solve captchas before using gated features."""
-    if not sess:
-        return True
-    if int(sess.get("pending_solves") or 0) > 0:
-        return True
-    last = float(sess.get("last_captcha") or 0)
-    return (time.time() - last) > config.CAPTCHA_INTERVAL_SECONDS
+    """Captcha disabled — always return False."""
+    return False
 
 
 def mark_captcha_progress(token, solved_ok):

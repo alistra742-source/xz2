@@ -210,25 +210,6 @@ textarea{width:100%;resize:vertical;font-family:ui-monospace,monospace;font-size
   font-size:13.5px}
 .check input{width:16px;height:16px;accent-color:#f2f2f3}
 
-/* ---------------------------------------------------------- captcha */
-.cap-wrap{margin-top:16px}
-.cap-scene{position:relative;width:100%;border-radius:10px;overflow:hidden;border:1px solid var(--line2);
-  touch-action:none;user-select:none;background:#0e0e10}
-.cap-scene img{width:100%;display:block;pointer-events:none;-webkit-user-drag:none}
-.cap-item{position:absolute;z-index:3;cursor:grab;touch-action:none;user-select:none;
-  -webkit-user-select:none;-webkit-touch-callout:none;padding:10px 10px 22px;
-  border:2px dashed rgba(255,255,255,.55);border-radius:12px;
-  background:rgba(255,255,255,.10);transition:border-color .12s,background .12s}
-.cap-item:hover{background:rgba(255,255,255,.16);border-color:#fff}
-.cap-item img{display:block;width:auto;pointer-events:none;-webkit-user-drag:none}
-.cap-item .grab-tag{position:absolute;left:0;right:0;bottom:5px;text-align:center;
-  font-size:9.5px;font-weight:700;letter-spacing:1px;color:#fff;pointer-events:none;
-  text-shadow:0 1px 3px rgba(0,0,0,.9)}
-.cap-item.dragging{cursor:grabbing;border-color:#fff;background:rgba(255,255,255,.2);
-  box-shadow:0 10px 30px rgba(0,0,0,.6)}
-.cap-tray{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:14px;
-  color:var(--mut);font-size:13.5px;flex-wrap:wrap}
-
 /* ---------------------------------------------------------- toasts */
 .toasts{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:8px;z-index:80}
 .toast{background:var(--surface2);border:1px solid var(--line2);border-left:3px solid var(--txt);
@@ -251,8 +232,7 @@ textarea{width:100%;resize:vertical;font-family:ui-monospace,monospace;font-size
 
 .svc .price .unit{font-size:13px;color:var(--mut2);font-weight:500;letter-spacing:0}
 
-.cap-tray .row{gap:8px;flex-wrap:nowrap}
-.cap-tray span{flex:1;min-width:180px}
+
 
 /* ---------------------------------------------------------- sponsor / smartlink */
 .sponsor-btn{margin-top:12px;display:inline-block;text-decoration:none;animation:pulse 1.8s ease-in-out infinite}

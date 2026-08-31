@@ -15,8 +15,6 @@ const state = {
   adBusy: false,
   adGeneration: 0,
   adTimer: null,
-  captchaOpen: false,
-  captcha: null,
   camsOn: false,
   timers: {}
 };
@@ -32,9 +30,6 @@ async function api(path, body, opts = {}) {
   let data = {};
   try { data = await res.json(); } catch (e) {}
   if (res.status === 401) { state.account = null; renderAccount(); openModal('modal-auth'); throw new Error('login-required'); }
-  if (res.status === 403 && data.error === 'captcha-required' && !opts.noCaptcha) {
-    openCaptcha(true); throw new Error('captcha-required');
-  }
   if (!res.ok) throw new Error(data.error || ('http-' + res.status));
   return data;
 }
@@ -54,7 +49,6 @@ function openModal(id) {
   $$('#modalRoot .modal').forEach(m => m.hidden = m.id !== id);
 }
 function closeModal() {
-  if (state.captchaOpen) return;              // captchas are mandatory
   $('#modalRoot').hidden = true;
   $$('#modalRoot .modal').forEach(m => m.hidden = true);
 }
@@ -106,10 +100,9 @@ function renderAccount() {
 
 async function refreshMe(silent = true) {
   try {
-    const d = await api('/api/me', null, { noCaptcha: true });
+    const d = await api('/api/me', null); // noCaptcha flag no longer needed
     state.account = d.account;
     renderAccount();
-    if (d.account && d.account.captcha_due && !state.captchaOpen) openCaptcha(true);
   } catch (e) { if (!silent) console.warn(e); }
 }
 
@@ -154,168 +147,8 @@ $('#loginBtn').onclick = async () => {
     renderAccount();
     closeModal();
     toast(d.created ? `Account created: @${d.account.username}` : `Welcome back, @${d.account.username}`, 'ok');
-    openCaptcha(true);
   } catch (e) { $('#authErr').textContent = 'Login failed: ' + e.message; }
 };
-
-/* ------------------------------------------------------------------ captcha */
-async function openCaptcha(mandatory) {
-  if (state.captchaOpen) return;
-  state.captchaOpen = true;
-  $('#capClose').style.display = mandatory ? 'none' : '';
-  openModal('modal-captcha');
-  await newCaptcha();
-}
-
-let capReady = false, capTrace = [], capMoved = false, capTrusted = true, capT0 = 0;
-
-async function newCaptcha() {
-  const img = $('#capImg'), item = $('#capItem'), itemImg = $('#capItemImg');
-  capReady = false; capTrace = []; capMoved = false; capTrusted = true;
-  $('#capDone').disabled = true;
-  item.style.visibility = 'hidden';
-  $('#capMsg').textContent = 'Loading challenge…';
-  try {
-    const d = await api('/api/captcha/new', { purpose: 'verify' }, { noCaptcha: true });
-    state.captcha = d;
-    itemImg.src = d.item;
-    // the scene MUST be decoded before we size anything off it, otherwise
-    // clientWidth is 0 and the draggable collapses to nothing
-    await new Promise(res => { img.onload = res; img.onerror = res; img.src = d.scene; });
-    if (img.clientWidth === 0) await new Promise(r => requestAnimationFrame(r));
-    layoutItem(16, d.h - d.item_h - 18);
-    item.style.visibility = '';
-    capReady = true;
-    $('#capSub').textContent = d.pending > 1
-      ? `Solve ${d.pending} challenges to unlock your account.`
-      : 'One more challenge to go.';
-    $('#capMsg').textContent = 'Hold the framed object, drag it onto its target, then press Complete.';
-  } catch (e) {
-    $('#capMsg').textContent = 'Could not load a challenge — press New challenge.';
-  }
-}
-$('#capNew').onclick = newCaptcha;
-$('#capDone').onclick = submitCaptcha;
-
-function sceneScale() {
-  const img = $('#capImg');
-  return (img.clientWidth || 1) / ((state.captcha && state.captcha.w) || 1);
-}
-
-/* place the draggable using SCENE coordinates for its top-left corner */
-function layoutItem(sx, sy) {
-  const k = sceneScale();
-  $('#capItemImg').style.width = (state.captcha.item_w * k) + 'px';
-  $('#capItem').style.left = (sx * k) + 'px';
-  $('#capItem').style.top = (sy * k) + 'px';
-}
-
-/* centre of the sprite, expressed in scene coordinates */
-function itemCenterScene() {
-  const sr = $('#capScene').getBoundingClientRect();
-  const ir = $('#capItemImg').getBoundingClientRect();
-  const k = sceneScale() || 1;
-  return { x: (ir.left + ir.width / 2 - sr.left) / k, y: (ir.top + ir.height / 2 - sr.top) / k };
-}
-
-(function dragSetup() {
-  const item = $('#capItem'), scene = $('#capScene');
-  let dragging = false, off = { x: 0, y: 0 };
-
-  function down(e) {
-    if (!capReady) return;
-    dragging = true;
-    if (e.isTrusted === false) capTrusted = false;
-    if (!capTrace.length) capT0 = performance.now();
-    const ir = item.getBoundingClientRect();
-    off.x = e.clientX - ir.left;
-    off.y = e.clientY - ir.top;
-    try { item.setPointerCapture(e.pointerId); } catch (_) {}
-    item.classList.add('dragging');
-    $('#capMsg').textContent = 'Drop it on the target…';
-    e.preventDefault();
-  }
-
-  function move(e) {
-    if (!dragging) return;
-    if (e.isTrusted === false) capTrusted = false;
-    const sr = scene.getBoundingClientRect();
-    const w = item.offsetWidth, h = item.offsetHeight;
-    let x = e.clientX - sr.left - off.x;
-    let y = e.clientY - sr.top - off.y;
-    x = Math.max(-w * 0.35, Math.min(sr.width - w * 0.65, x));
-    y = Math.max(-h * 0.35, Math.min(sr.height - h * 0.65, y));
-    item.style.left = x + 'px';
-    item.style.top = y + 'px';
-    const c = itemCenterScene();
-    capTrace.push([+c.x.toFixed(1), +c.y.toFixed(1), +(performance.now() - capT0).toFixed(1)]);
-    if (capTrace.length > 900) capTrace.splice(0, 300);
-    capMoved = true;
-    e.preventDefault();
-  }
-
-  function up(e) {
-    if (!dragging) return;
-    dragging = false;
-    item.classList.remove('dragging');
-    try { item.releasePointerCapture(e.pointerId); } catch (_) {}
-    if (capMoved && capTrace.length >= 6) {
-      $('#capDone').disabled = false;
-      $('#capMsg').textContent = 'Placed — press Complete to verify (or nudge it closer first).';
-    } else {
-      $('#capMsg').textContent = 'Hold the framed object and drag it onto its target.';
-    }
-  }
-
-  item.addEventListener('pointerdown', down);
-  item.addEventListener('pointermove', move);
-  item.addEventListener('pointerup', up);
-  item.addEventListener('pointercancel', up);
-  item.addEventListener('lostpointercapture', up);
-  item.addEventListener('dragstart', e => e.preventDefault());
-  item.addEventListener('contextmenu', e => e.preventDefault());
-
-  window.addEventListener('resize', () => {
-    if (!state.captcha || !capReady) return;
-    const c = itemCenterScene(), k = sceneScale();
-    $('#capItemImg').style.width = (state.captcha.item_w * k) + 'px';
-    requestAnimationFrame(() => {
-      const w = $('#capItem').offsetWidth, h = $('#capItem').offsetHeight;
-      $('#capItem').style.left = (c.x * k - w / 2) + 'px';
-      $('#capItem').style.top = (c.y * k - h / 2) + 'px';
-    });
-  });
-})();
-
-async function submitCaptcha() {
-  if (!capReady || !capMoved) return;
-  const btn = $('#capDone');
-  btn.disabled = true;
-  const c = itemCenterScene();
-  $('#capMsg').textContent = 'Checking…';
-  try {
-    const d = await api('/api/captcha/solve', {
-      id: state.captcha.id, x: c.x, y: c.y, trace: capTrace, trusted: capTrusted
-    }, { noCaptcha: true });
-    if (d.ok && d.pending === 0) {
-      state.captchaOpen = false;
-      closeModal();
-      toast('Verified — welcome in.', 'ok');
-      await refreshMe();
-    } else if (d.ok) {
-      $('#capMsg').textContent = 'Correct. One more to go…';
-      setTimeout(newCaptcha, 550);
-    } else {
-      $('#capMsg').textContent = d.reason === 'missed' || d.reason === 'wrong-container'
-        ? 'Not the right spot — you now have 2 challenges again.'
-        : 'That did not look like a human drag — try again.';
-      setTimeout(newCaptcha, 900);
-    }
-  } catch (e) {
-    $('#capMsg').textContent = 'Verification error — loading a new challenge…';
-    setTimeout(newCaptcha, 900);
-  }
-}
 
 /* ------------------------------------------------------------------ ads tab */
 let adsViewed = 0;
@@ -382,8 +215,7 @@ async function loadAds() {
   });
   $$('#packs button').forEach(b => b.onclick = () => startAds(b.dataset.pack));
   if (d.run && d.run.state === 'challenge') {
-    toast('Suspicious activity detected — verify to continue.', 'bad');
-    openCaptcha(true);
+    toast('Suspicious activity detected — session voided.', 'bad');
   }
 }
 
@@ -424,7 +256,7 @@ async function startAds(pack) {
   } catch (e) {
     if (generation !== state.adGeneration) return;
     state.adBusy = false;
-    if (e.message !== 'captcha-required') toast('Could not start: ' + e.message, 'bad');
+    toast('Could not start: ' + e.message, 'bad');
   }
 }
 
@@ -463,7 +295,7 @@ async function runNextAd(generation = state.adGeneration) {
     if (generation !== state.adGeneration) return;
     state.adBusy = false; $('#adStage').hidden = true;
     if (e.message === 'finished') { toast('Run finished', 'ok'); }
-    else if (e.message !== 'captcha-required') toast('Ad error: ' + e.message, 'bad');
+    else toast('Ad error: ' + e.message, 'bad');
     loadAds(); refreshMe(); return;
   }
   if (!state.adBusy || generation !== state.adGeneration) return;
@@ -513,8 +345,7 @@ async function runNextAd(generation = state.adGeneration) {
         if (hb.ok === false) {
           clearInterval(tick); state.adTimer = null;
           state.adBusy = false; $('#adStage').hidden = true;
-          toast('Verification needed: ' + (hb.reason || ''), 'bad');
-          openCaptcha(true);
+          toast('Verification failed: ' + (hb.reason || ''), 'bad');
           return;
         }
         if (hb.paused) { remaining = total; }
@@ -556,7 +387,6 @@ async function runNextAd(generation = state.adGeneration) {
         } else {
           state.adBusy = false; $('#adStage').hidden = true;
           toast('Blocked: ' + res.reason, 'bad');
-          openCaptcha(true);
         }
       } catch (e) {
         if (generation !== state.adGeneration) return;

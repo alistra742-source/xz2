@@ -6,7 +6,7 @@ import time
 from flask import (Flask, Response, jsonify, make_response, render_template,
                    request, send_from_directory)
 
-from core import accounts, ads, captcha, config, db, engine, orders, security
+from core import accounts, ads, config, db, engine, orders, security
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.config["JSON_SORT_KEYS"] = False
@@ -34,14 +34,8 @@ def need_login():
 
 
 def need_verified():
-    sess, acct, err = need_login()
-    if err:
-        return None, None, err
-    if accounts.captcha_due(sess):
-        return None, None, (jsonify({"error": "captcha-required",
-                                     "pending": int(sess["pending_solves"] or 0) or
-                                     config.CAPTCHA_REQUIRED_SOLVES}), 403)
-    return sess, acct, None
+    # Captcha disabled — just require login.
+    return need_login()
 
 
 def need_admin():
@@ -132,37 +126,6 @@ def api_me():
         return jsonify({"account": None, "site": config.SITE_NAME})
     accounts.touch(acct["id"])
     return jsonify({"account": accounts.public_account(acct, sess)})
-
-
-# ------------------------------------------------------------------ captcha
-@app.post("/api/captcha/new")
-def api_captcha_new():
-    sess, acct, err = need_login()
-    if err:
-        return err
-    ip = security.client_ip(request)
-    if not security.limiter.hit(f"cap:{ip}", 40, 600):
-        return jsonify({"error": "rate-limited"}), 429
-    purpose = (request.json or {}).get("purpose", "verify")
-    payload = captcha.build_challenge(sess["token"], purpose)
-    payload["pending"] = int(sess["pending_solves"] or 0)
-    return jsonify(payload)
-
-
-@app.post("/api/captcha/solve")
-def api_captcha_solve():
-    sess, acct, err = need_login()
-    if err:
-        return err
-    body = request.json or {}
-    ok, why = captcha.verify(body.get("id"), body.get("x"), body.get("y"),
-                             body.get("trace"), bool(body.get("trusted")))
-    pending = accounts.mark_captcha_progress(sess["token"], ok)
-    if ok and pending == 0:
-        run = ads.get_open(acct["id"])
-        if run and run["state"] == "challenge":
-            ads.clear_challenge(run)
-    return jsonify({"ok": ok, "reason": why, "pending": pending})
 
 
 # ------------------------------------------------------------------ ads
